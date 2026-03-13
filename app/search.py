@@ -33,6 +33,9 @@ def _sanitize_fts_query(query: str) -> str:
     return " AND ".join(parts) if parts else ""
 
 
+_MAX_PAGE = 500  # Prevent runaway OFFSET queries (page * per_page ≤ 10 000 rows)
+
+
 def search(
     conn: sqlite3.Connection,
     query: str,
@@ -41,6 +44,7 @@ def search(
     per_page: int = 20,
 ) -> tuple[list[dict], int]:
     """Search the FTS index and return matching items with their source data."""
+    page = min(page, _MAX_PAGE)
     fts_query = _sanitize_fts_query(query)
     if not fts_query:
         return [], 0

@@ -1,6 +1,7 @@
 import logging
 import math
 import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote as _url_quote
@@ -47,6 +48,10 @@ OAUTH_SCOPES = "read write:accounts"
 scheduler = BackgroundScheduler()
 sync_lock = threading.Lock()
 profile_updater = ProfileUpdater()
+
+_ROAST_COOLDOWN_SECONDS = 30
+_last_roast_request: float = 0
+_roast_lock = threading.Lock()
 
 
 def _get_credentials() -> tuple[str, str] | None:
@@ -339,6 +344,16 @@ async def save_ai_settings(request: Request):
 @app.post("/api/roast")
 async def api_regenerate_roast():
     """Force-regenerate the AI roast."""
+    global _last_roast_request
+    with _roast_lock:
+        now = time.time()
+        if now - _last_roast_request < _ROAST_COOLDOWN_SECONDS:
+            remaining = int(_ROAST_COOLDOWN_SECONDS - (now - _last_roast_request))
+            return JSONResponse(
+                {"status": "error", "message": f"Please wait {remaining}s before generating another roast"},
+                status_code=429,
+            )
+        _last_roast_request = now
     with get_db() as conn:
         roast = generate_roast(conn, force=True)
     if not roast:

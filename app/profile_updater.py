@@ -445,11 +445,16 @@ class ProfileUpdater:
         self.running = False
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
-        # Status tracking — restore persisted values
-        with get_db() as conn:
-            self.last_track_info: str | None = get_setting(conn, "pu_last_track_info")
-            self.last_movie_info: str | None = get_setting(conn, "pu_last_movie_info")
-            self.last_book_info: str | None = get_setting(conn, "pu_last_book_info")
+        # Status tracking — restore persisted values (DB may not exist yet on first boot)
+        try:
+            with get_db() as conn:
+                self.last_track_info: str | None = get_setting(conn, "pu_last_track_info")
+                self.last_movie_info: str | None = get_setting(conn, "pu_last_movie_info")
+                self.last_book_info: str | None = get_setting(conn, "pu_last_book_info")
+        except Exception:
+            self.last_track_info = None
+            self.last_movie_info = None
+            self.last_book_info = None
         self.last_custom_info: str | None = None
         self._cached_fields: list | None = None  # cached from account_verify_credentials
         self.last_music_update: float = 0

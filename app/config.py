@@ -16,6 +16,9 @@ MEDIA_PATH = os.environ.get("MEDIA_PATH", "/app/data/media")
 # e.g. http://localhost:6886 or https://tootkeeper.example.com
 APP_URL = os.environ.get("APP_URL", "http://localhost:6886")
 
+# Optional password to protect the web UI. Leave blank for open access.
+APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+
 # AI provider for roast generation (optional)
 # Supported: anthropic, openai, gemini, openai-compatible
 AI_PROVIDER = os.environ.get("AI_PROVIDER", "")

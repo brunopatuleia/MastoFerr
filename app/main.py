@@ -1,5 +1,7 @@
+import hashlib
 import logging
 import math
+import secrets
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -14,7 +16,7 @@ from fastapi.templating import Jinja2Templates
 from mastodon import Mastodon
 
 from app.collector import run_full_sync
-from app.config import APP_URL, GITHUB_REPO, MASTODON_ACCESS_TOKEN, MASTODON_INSTANCE, MEDIA_PATH, POLL_INTERVAL, VERSION
+from app.config import APP_PASSWORD, APP_URL, GITHUB_REPO, MASTODON_ACCESS_TOKEN, MASTODON_INSTANCE, MEDIA_PATH, POLL_INTERVAL, VERSION
 from app.profile_updater import ProfileUpdater
 from app.roast import generate_roast
 from app.database import (
@@ -54,6 +56,33 @@ _last_roast_request: float = 0
 _roast_lock = threading.Lock()
 
 _version_cache: dict = {"latest": None, "ts": 0.0}
+
+# Auth — populated during lifespan startup
+_secret_key: str = ""
+_AUTH_COOKIE = "tk_auth"
+
+
+def _auth_token() -> str:
+    return hashlib.sha256(f"{APP_PASSWORD}:{_secret_key}".encode()).hexdigest()
+
+
+def _is_authenticated(request: Request) -> bool:
+    if not APP_PASSWORD:
+        return True
+    return request.cookies.get(_AUTH_COOKIE) == _auth_token()
+
+
+def _require_auth(request: Request) -> "RedirectResponse | None":
+    if not _is_authenticated(request):
+        next_path = _url_quote(request.url.path)
+        return RedirectResponse(url=f"/login?next={next_path}", status_code=302)
+    return None
+
+
+def _require_auth_api(request: Request) -> "JSONResponse | None":
+    if not _is_authenticated(request):
+        return JSONResponse({"status": "error", "message": "Unauthorized"}, status_code=401)
+    return None
 
 
 def _get_credentials() -> tuple[str, str] | None:
@@ -99,7 +128,15 @@ def _start_scheduler():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _secret_key
     init_db()
+
+    # Generate and persist a secret key used to sign auth cookies
+    with get_db() as conn:
+        _secret_key = get_setting(conn, "secret_key") or ""
+        if not _secret_key:
+            _secret_key = secrets.token_hex(32)
+            set_setting(conn, "secret_key", _secret_key)
 
     # Migrate env vars to DB if DB has no credentials but env vars are set
     with get_db() as conn:
@@ -190,17 +227,53 @@ def _paginate(page: int, per_page: int, total: int) -> dict:
 
 
 def _require_setup(request: Request) -> RedirectResponse | None:
-    """Return a redirect to /setup if not configured, else None."""
+    """Return a redirect to /login or /setup if not authorized/configured, else None."""
+    auth = _require_auth(request)
+    if auth:
+        return auth
     with get_db() as conn:
         if not is_configured(conn):
             return RedirectResponse(url="/setup", status_code=302)
     return None
 
 
+# ─── Auth ─────────────────────────────────────────────────────────
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, next: str = "/", error: str = ""):
+    if _is_authenticated(request):
+        return RedirectResponse(url=next, status_code=302)
+    return templates.TemplateResponse("login.html", {"request": request, "next": next, "error": error})
+
+
+@app.post("/login")
+async def login_submit(request: Request):
+    form = await request.form()
+    password = str(form.get("password", ""))
+    next_url = str(form.get("next", "/"))
+    if APP_PASSWORD and password == APP_PASSWORD:
+        response = RedirectResponse(url=next_url, status_code=302)
+        response.set_cookie(_AUTH_COOKIE, _auth_token(), httponly=True, samesite="lax")
+        return response
+    return templates.TemplateResponse("login.html", {
+        "request": request, "next": next_url, "error": "Incorrect password",
+    }, status_code=401)
+
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/login", status_code=302)
+    response.delete_cookie(_AUTH_COOKIE)
+    return response
+
+
 # ─── OAuth / Setup ────────────────────────────────────────────────
 
 @app.get("/setup", response_class=HTMLResponse)
 async def setup_page(request: Request, error: str = ""):
+    auth = _require_auth(request)
+    if auth:
+        return auth
     with get_db() as conn:
         settings = get_all_settings(conn)
     return templates.TemplateResponse("setup.html", {
@@ -333,6 +406,9 @@ async def auth_logout():
 @app.post("/settings/ai")
 async def save_ai_settings(request: Request):
     """Save AI provider settings."""
+    auth = _require_auth(request)
+    if auth:
+        return auth
     form = await request.form()
     with get_db() as conn:
         for key in ("ai_provider", "ai_api_key", "ai_model", "ai_base_url"):
@@ -344,8 +420,11 @@ async def save_ai_settings(request: Request):
 
 
 @app.post("/api/roast")
-async def api_regenerate_roast():
+async def api_regenerate_roast(request: Request):
     """Force-regenerate the AI roast."""
+    auth = _require_auth_api(request)
+    if auth:
+        return auth
     global _last_roast_request
     with _roast_lock:
         now = time.time()
@@ -574,14 +653,18 @@ async def toot_detail(request: Request, toot_id: str):
 
 
 @app.get("/api/stats")
-async def api_stats():
+async def api_stats(request: Request):
+    if (auth := _require_auth_api(request)):
+        return auth
     with get_db() as conn:
         stats = get_stats(conn)
     return JSONResponse(stats)
 
 
 @app.post("/api/sync")
-async def api_sync():
+async def api_sync(request: Request):
+    if (auth := _require_auth_api(request)):
+        return auth
     if sync_lock.locked():
         return JSONResponse({"status": "already_running"})
     creds = _get_credentials()
@@ -638,7 +721,9 @@ async def settings_profile_updater(request: Request):
 
 
 @app.post("/api/tools/start")
-async def api_tools_start():
+async def api_tools_start(request: Request):
+    if (auth := _require_auth_api(request)):
+        return auth
     if profile_updater.running:
         return JSONResponse({"status": "ok", "message": "Already running"})
     with get_db() as conn:
@@ -648,7 +733,9 @@ async def api_tools_start():
 
 
 @app.post("/api/tools/stop")
-async def api_tools_stop():
+async def api_tools_stop(request: Request):
+    if (auth := _require_auth_api(request)):
+        return auth
     profile_updater.stop()
     with get_db() as conn:
         set_setting(conn, "pu_enabled", "0")
@@ -656,13 +743,17 @@ async def api_tools_stop():
 
 
 @app.get("/api/tools/status")
-async def api_tools_status():
+async def api_tools_status(request: Request):
+    if (auth := _require_auth_api(request)):
+        return auth
     return JSONResponse(profile_updater.get_status())
 
 
 @app.post("/api/tools/order")
 async def api_tools_order(request: Request):
     """Save the field display order."""
+    if (auth := _require_auth_api(request)):
+        return auth
     data = await request.json()
     order = data.get("order", [])
     if order:

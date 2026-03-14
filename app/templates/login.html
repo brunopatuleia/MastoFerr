@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Login - Tootkeeper{% endblock %}
+
+{% block content %}
+<div class="setup-page">
+    <div class="setup-card">
+        <h1>Tootkeeper</h1>
+        <p class="setup-desc">Enter the password to access your archive.</p>
+
+        {% if error %}
+        <div class="error-msg">{{ error }}</div>
+        {% endif %}
+
+        <form action="/login" method="post" class="setup-form">
+            <input type="hidden" name="next" value="{{ next }}">
+            <label for="password">Password</label>
+            <div class="input-row">
+                <input type="password" id="password" name="password" autofocus required>
+                <button type="submit" class="btn btn-sync">Login</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

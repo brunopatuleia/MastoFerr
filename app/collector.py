@@ -35,6 +35,8 @@ def get_client() -> Mastodon:
     return Mastodon(
         access_token=token,
         api_base_url=instance,
+        ratelimit_method="pace",   # proactively slow down before hitting the limit
+        ratelimit_pacefactor=0.9,  # stay at 90% of the allowed rate
     )
 
 
@@ -149,7 +151,7 @@ def _fetch_all_pages(fetch_func, client=None, since_id=None, limit=40, stop_on_i
         if pages_fetched % 10 == 0:
             logger.info(f"  ...fetched {len(all_items)} items so far ({pages_fetched} pages)")
 
-        time.sleep(0.3)  # Rate limiting
+        time.sleep(1.0)  # Be gentle on the instance between pages
 
     return all_items, new_cursor
 

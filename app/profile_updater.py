@@ -451,6 +451,7 @@ class ProfileUpdater:
             self.last_movie_info: str | None = get_setting(conn, "pu_last_movie_info")
             self.last_book_info: str | None = get_setting(conn, "pu_last_book_info")
         self.last_custom_info: str | None = None
+        self._cached_fields: list | None = None  # cached from account_verify_credentials
         self.last_music_update: float = 0
         self.last_movie_update: float = 0
         self.last_book_update: float = 0
@@ -530,17 +531,25 @@ class ProfileUpdater:
         token = settings.get("access_token")
         if not instance or not token:
             return None
-        return Mastodon(access_token=token, api_base_url=instance)
+        return Mastodon(
+            access_token=token,
+            api_base_url=instance,
+            ratelimit_method="wait",  # wait if rate limited rather than crash
+        )
 
     def _update_profile_fields(self, client: Mastodon, managed_fields: dict[str, str]) -> bool:
         """Update multiple profile fields in a single API call.
 
         managed_fields: dict of {field_name: value} for fields this tool manages.
         Preserves non-managed fields and respects the configured field order.
+        Uses a cached copy of the current fields to avoid an extra API call
+        on every invocation; cache is refreshed after each successful update.
         """
         try:
-            account = client.account_verify_credentials()
-            current_fields = account.get("fields", [])
+            if self._cached_fields is None:
+                account = client.account_verify_credentials()
+                self._cached_fields = account.get("fields", [])
+            current_fields = self._cached_fields
             managed_names = set(managed_fields.keys())
 
             # Keep non-managed fields in their current positions
@@ -577,6 +586,8 @@ class ProfileUpdater:
 
             fields_tuples = [(f["name"], f["value"]) for f in new_fields]
             client.account_update_credentials(fields=fields_tuples)
+            # Invalidate cache so next update re-fetches the real current state
+            self._cached_fields = None
             return True
         except MastodonError as e:
             logger.error(f"Failed to update profile fields: {e}")

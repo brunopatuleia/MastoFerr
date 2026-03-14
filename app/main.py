@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import logging
 import math
 import secrets
@@ -70,6 +71,13 @@ def _is_authenticated(request: Request) -> bool:
     if not APP_PASSWORD:
         return True
     return request.cookies.get(_AUTH_COOKIE) == _auth_token()
+
+
+def _safe_next(url: str) -> str:
+    """Allow only relative paths to prevent open redirect attacks."""
+    if url and url.startswith("/") and not url.startswith("//"):
+        return url
+    return "/"
 
 
 def _require_auth(request: Request) -> "RedirectResponse | None":
@@ -242,7 +250,7 @@ def _require_setup(request: Request) -> RedirectResponse | None:
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, next: str = "/", error: str = ""):
     if _is_authenticated(request):
-        return RedirectResponse(url=next, status_code=302)
+        return RedirectResponse(url=_safe_next(next), status_code=302)
     return templates.TemplateResponse("login.html", {"request": request, "next": next, "error": error})
 
 
@@ -250,8 +258,8 @@ async def login_page(request: Request, next: str = "/", error: str = ""):
 async def login_submit(request: Request):
     form = await request.form()
     password = str(form.get("password", ""))
-    next_url = str(form.get("next", "/"))
-    if APP_PASSWORD and password == APP_PASSWORD:
+    next_url = _safe_next(str(form.get("next", "/")))
+    if APP_PASSWORD and hmac.compare_digest(password, APP_PASSWORD):
         response = RedirectResponse(url=next_url, status_code=302)
         response.set_cookie(_AUTH_COOKIE, _auth_token(), httponly=True, samesite="lax")
         return response
@@ -286,6 +294,9 @@ async def setup_page(request: Request, error: str = ""):
 @app.post("/auth/login")
 async def auth_login(request: Request):
     """Register app with the Mastodon instance and redirect to authorize."""
+    auth = _require_auth(request)
+    if auth:
+        return auth
     form = await request.form()
     instance_url = str(form.get("instance_url", "")).strip().rstrip("/")
 

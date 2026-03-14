@@ -221,7 +221,7 @@ def sync_favorites(client: Mastodon):
             kwargs["min_id"] = cursor
         return client.favourites(**kwargs)
 
-    favs, new_cursor = _fetch_all_pages(fetch, client=None, stop_on_id=False)
+    favs, _ = _fetch_all_pages(fetch, client=None, stop_on_id=False)
     if not favs:
         logger.info("No new favorites found.")
         return 0
@@ -230,9 +230,8 @@ def sync_favorites(client: Mastodon):
         for fav in favs:
             upsert_favorite(conn, fav)
             download_media(fav)
-        
-        if new_cursor:
-            set_sync_state(conn, "favorites_cursor", new_cursor)
+        newest_id = str(max(int(f["id"]) for f in favs))
+        set_sync_state(conn, "favorites_cursor", newest_id)
 
     logger.info(f"Synced {len(favs)} favorites.")
     return len(favs)
@@ -250,7 +249,7 @@ def sync_bookmarks(client: Mastodon):
             kwargs["min_id"] = cursor
         return client.bookmarks(**kwargs)
 
-    bmarks, new_cursor = _fetch_all_pages(fetch, client=None, stop_on_id=False)
+    bmarks, _ = _fetch_all_pages(fetch, client=None, stop_on_id=False)
     if not bmarks:
         logger.info("No new bookmarks found.")
         return 0
@@ -259,9 +258,8 @@ def sync_bookmarks(client: Mastodon):
         for bm in bmarks:
             upsert_bookmark(conn, bm)
             download_media(bm)
-        
-        if new_cursor:
-            set_sync_state(conn, "bookmarks_cursor", new_cursor)
+        newest_id = str(max(int(b["id"]) for b in bmarks))
+        set_sync_state(conn, "bookmarks_cursor", newest_id)
 
     logger.info(f"Synced {len(bmarks)} bookmarks.")
     return len(bmarks)

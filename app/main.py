@@ -53,6 +53,8 @@ _ROAST_COOLDOWN_SECONDS = 30
 _last_roast_request: float = 0
 _roast_lock = threading.Lock()
 
+_version_cache: dict = {"latest": None, "ts": 0.0}
+
 
 def _get_credentials() -> tuple[str, str] | None:
     """Get instance URL and access token from DB, falling back to env vars."""
@@ -382,9 +384,19 @@ async def settings_page(request: Request, saved: str = ""):
 async def api_version():
     """Check for updates by comparing local version with latest GitHub tag."""
     current = VERSION
+    now = time.time()
+
+    # Return cached result if less than 1 hour old
+    if _version_cache["latest"] and (now - _version_cache["ts"] < 3600):
+        latest = _version_cache["latest"]
+        return JSONResponse({
+            "current": current,
+            "latest": latest,
+            "update_available": latest != current,
+        })
+
     latest = None
     update_available = False
-
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/tags?per_page=1"
         response = requests.get(url, headers={"User-Agent": "Tootkeeper"}, timeout=5)
@@ -393,6 +405,8 @@ async def api_version():
         if tags:
             latest = tags[0]["name"].lstrip("v")
             update_available = latest != current
+            _version_cache["latest"] = latest
+            _version_cache["ts"] = now
     except (requests.RequestException, KeyError, IndexError):
         logger.debug("Failed to check for updates on GitHub")
 

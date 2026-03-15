@@ -184,6 +184,56 @@ class NavidromeClient:
         logger.error(f"Navidrome returned non-JSON response (content-type: {content_type}). Check your server URL and credentials.")
         return None
 
+    def get_album_info(self, album_id: str) -> dict | None:
+        """Fetch album metadata and track count via getAlbum."""
+        params = self._auth_params()
+        params["id"] = album_id
+        try:
+            resp = requests.get(self._api_url("getAlbum"), params=params, timeout=10)
+            resp.raise_for_status()
+            data = self._parse_response(resp)
+            if not data:
+                return None
+            album = data.get("album", {})
+            songs = album.get("song", [])
+            if not isinstance(songs, list):
+                songs = [songs] if songs else []
+            # Count unique (disc, track) pairs — handles multi-disc albums
+            track_keys = {(s.get("discNumber", 1), s.get("track", 0)) for s in songs}
+            total_tracks = len(track_keys) or album.get("songCount", 0)
+            # Genres: OpenSubsonic returns [{name:...}], standard returns a string
+            genres: list[str] = []
+            raw_genres = album.get("genres")
+            if raw_genres:
+                for g in (raw_genres if isinstance(raw_genres, list) else [raw_genres]):
+                    genres.append(g["name"] if isinstance(g, dict) else g)
+            elif album.get("genre"):
+                genres = [album["genre"]]
+            return {
+                "id": album_id,
+                "name": album.get("name", "Unknown Album"),
+                "artist": album.get("artist", "Unknown Artist"),
+                "year": str(album["year"]) if album.get("year") else "",
+                "genres": [g for g in genres if g],
+                "cover_art_id": album.get("coverArt") or album_id,
+                "total_tracks": total_tracks,
+            }
+        except Exception as e:
+            logger.error(f"Navidrome getAlbum failed ({album_id}): {e}")
+            return None
+
+    def get_cover_art_bytes(self, cover_art_id: str) -> bytes | None:
+        """Download album cover art."""
+        params = self._auth_params()
+        params["id"] = cover_art_id
+        try:
+            resp = requests.get(self._api_url("getCoverArt"), params=params, timeout=15)
+            resp.raise_for_status()
+            return resp.content
+        except Exception as e:
+            logger.error(f"Navidrome getCoverArt failed ({cover_art_id}): {e}")
+            return None
+
     def get_top_artists_weekly(self, limit: int = 5) -> list[dict]:
         """Get top artists from the last 7 days by aggregating recent album plays."""
         cutoff = datetime.now(timezone.utc) - timedelta(days=7)
@@ -234,6 +284,10 @@ class NavidromeClient:
                 return {
                     "artist": entry.get("artist", "Unknown Artist"),
                     "title": entry.get("title", "Unknown Title"),
+                    "albumId": entry.get("albumId"),
+                    "album": entry.get("album"),
+                    "track": entry.get("track"),
+                    "discNumber": entry.get("discNumber", 1),
                     "now_playing": True,
                     "source": "navidrome",
                 }
@@ -251,6 +305,10 @@ class NavidromeClient:
                     return {
                         "artist": entry.get("artist", "Unknown Artist"),
                         "title": entry.get("title", "Unknown Title"),
+                        "albumId": entry.get("albumId"),
+                        "album": entry.get("album"),
+                        "track": entry.get("track"),
+                        "discNumber": entry.get("discNumber", 1),
                         "now_playing": False,
                         "source": "navidrome",
                     }
@@ -486,6 +544,26 @@ def _format_book_finished_toot(event: dict, settings: dict) -> str:
     return f"{emoji}Just finished reading: {event['book_title']}{author_str}{rating_str}\n\n{hashtags}"
 
 
+def _format_album_toot(album: dict, settings: dict) -> str:
+    """Format a toot for a completed album listen session."""
+    artist = album.get("artist", "Unknown Artist")
+    name = album.get("name", "Unknown Album")
+    year = album.get("year", "")
+    genres = album.get("genres", [])
+
+    album_line = f"[{year}] {name}" if year else name
+
+    genre_tags = " ".join(
+        "#" + "".join(w.capitalize() for w in g.split())
+        for g in genres[:5]
+    )
+
+    base_tags = settings.get("pu_album_hashtags", "").strip() or "#NowPlaying"
+    hashtags = f"{base_tags} {genre_tags}".strip() if genre_tags else base_tags
+
+    return "\n".join([artist, album_line, "", hashtags])
+
+
 def _format_abs_toot(book: dict, settings: dict) -> str:
     """Format a toot for a newly started Audiobookshelf book."""
     title = book.get("title", "Unknown")
@@ -526,6 +604,7 @@ DEFAULTS = {
     "pu_offline_message": "Nothing playing",
     "pu_abs_interval": "900",
     "pu_abs_hashtags": "#NowReading #Audiobooks #Books",
+    "pu_album_hashtags": "#NowPlaying",
 }
 
 
@@ -555,6 +634,7 @@ class ProfileUpdater:
         self.last_movie_update: float = 0
         self.last_book_update: float = 0
         self.last_abs_update: float = 0
+        self._album_session: dict | None = None
         self.error: str | None = None
 
     def start(self):
@@ -780,6 +860,55 @@ class ProfileUpdater:
                             with get_db() as conn:
                                 set_setting(conn, "pu_last_track_info", track_info)
                         self.last_music_update = now
+
+                        # Album listen detection (Navidrome only — requires albumId + track)
+                        if settings.get("pu_album_enabled") == "1" and track and track.get("albumId"):
+                            navidrome_client = next(
+                                (c for c in music_clients if isinstance(c, NavidromeClient)), None
+                            )
+                            if navidrome_client:
+                                album_id = track["albumId"]
+                                track_key = (track.get("discNumber", 1), track.get("track", 0))
+
+                                if not self._album_session or self._album_session["album_id"] != album_id:
+                                    # New album started — fetch metadata and open a new session
+                                    album_info = navidrome_client.get_album_info(album_id)
+                                    if album_info:
+                                        self._album_session = {
+                                            "album_id": album_id,
+                                            "tracks_seen": {track_key},
+                                            "total_tracks": album_info["total_tracks"],
+                                            "album_info": album_info,
+                                            "posted": False,
+                                        }
+                                        logger.info(f"Album session started: {album_info['name']} ({album_info['total_tracks']} tracks)")
+                                elif not self._album_session["posted"]:
+                                    self._album_session["tracks_seen"].add(track_key)
+                                    total = self._album_session["total_tracks"]
+                                    seen = len(self._album_session["tracks_seen"])
+                                    if total > 0 and seen / total >= 0.75:
+                                        album_info = self._album_session["album_info"]
+                                        toot_text = _format_album_toot(album_info, settings)
+                                        cover_bytes = navidrome_client.get_cover_art_bytes(
+                                            album_info.get("cover_art_id", album_id)
+                                        )
+                                        media_ids = None
+                                        if cover_bytes:
+                                            try:
+                                                media = mastodon.media_post(
+                                                    BytesIO(cover_bytes),
+                                                    mime_type="image/jpeg",
+                                                    description=f"{album_info['name']} by {album_info['artist']}",
+                                                )
+                                                media_ids = [media["id"]]
+                                            except MastodonError as e:
+                                                logger.error(f"Failed to upload album cover: {e}")
+                                        try:
+                                            mastodon.status_post(toot_text, media_ids=media_ids, visibility="public")
+                                            logger.info(f"Posted album toot: {album_info['name']} ({seen}/{total} tracks heard)")
+                                            self._album_session["posted"] = True
+                                        except MastodonError as e:
+                                            logger.error(f"Failed to post album toot: {e}")
 
                     # Movie update
                     if letterboxd and now - self.last_movie_update >= movie_interval:

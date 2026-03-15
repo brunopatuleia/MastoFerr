@@ -182,6 +182,15 @@
                             <label for="pu_music_interval" style="margin-top: 0.75rem;">Check interval (seconds)</label>
                             <input type="number" id="pu_music_interval" name="pu_music_interval" min="30" placeholder="60" value="{{ settings.get('pu_music_interval', '60') }}">
 
+                            <h3 style="margin-top: 1.25rem; font-size: 0.95rem;">Album Listening Posts (Navidrome)</h3>
+                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="pu_album_enabled" value="1" {{ 'checked' if settings.get('pu_album_enabled', '0') == '1' }}>
+                                Post when I finish listening to an album (≥75% of tracks heard in a session)
+                            </label>
+                            <label for="pu_album_hashtags" style="margin-top: 0.75rem;">Hashtags</label>
+                            <input type="text" id="pu_album_hashtags" name="pu_album_hashtags" placeholder="#NowPlaying" value="{{ settings.get('pu_album_hashtags', '') }}">
+                            <p class="setup-hint" style="margin-top: 0.25rem;">Genres from Navidrome are appended automatically. Leave blank for defaults.</p>
+
                             <h3 style="margin-top: 1.25rem; font-size: 0.95rem;">Weekly Recap</h3>
                             <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                                 <input type="checkbox" name="pu_weekly_artists_enabled" value="1" {{ 'checked' if settings.get('pu_weekly_artists_enabled', '0') == '1' }}>

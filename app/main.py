@@ -705,12 +705,14 @@ PU_SETTINGS_KEYS = [
     "pu_custom_field_name", "pu_custom_field_value",
     "pu_field_order",
     "pu_books_hashtags", "pu_weekly_artists_hashtags",
+    "pu_album_hashtags",
 ]
 
 PU_CHECKBOX_KEYS = [
     "pu_music_enabled", "pu_movies_enabled", "pu_books_enabled",
     "pu_custom_enabled", "pu_show_emoji", "pu_weekly_artists_enabled",
     "pu_books_post_start", "pu_books_post_finish",
+    "pu_album_enabled",
 ]
 
 ABS_SETTINGS_KEYS = ["pu_abs_url", "pu_abs_token", "pu_abs_hashtags", "pu_abs_interval"]

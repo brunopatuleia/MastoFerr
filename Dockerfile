@@ -4,26 +4,26 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
+COPY entrypoint.sh /entrypoint.sh
 
-# Create a non-root user and hand over ownership of the app directory.
-# The /app/data volume will be created on the host by Docker; the host
-# directory must be writable by UID 1000 (or set via PUID/PGID).
+# Create a non-root user. The entrypoint will fix data volume ownership at
+# runtime before dropping from root to appuser via gosu.
 RUN useradd -m -u 1000 appuser && \
     mkdir -p /app/data && \
-    chown -R appuser:appuser /app
-
-USER appuser
+    chown -R appuser:appuser /app && \
+    chmod +x /entrypoint.sh
 
 EXPOSE 8080
 
-# Lightweight health check — polls the stats API which requires no auth.
+# Lightweight health check — /health requires no auth and always returns 200.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/stats')"
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+ENTRYPOINT ["/entrypoint.sh"]

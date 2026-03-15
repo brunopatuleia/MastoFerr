@@ -663,6 +663,12 @@ async def toot_detail(request: Request, toot_id: str):
     })
 
 
+@app.get("/health")
+async def health_check():
+    """Lightweight liveness probe — no auth required."""
+    return JSONResponse({"status": "ok"})
+
+
 @app.get("/api/stats")
 async def api_stats(request: Request):
     if (auth := _require_auth_api(request)):

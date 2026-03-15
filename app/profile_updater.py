@@ -6,6 +6,7 @@ Adapted from the standalone mastodon_profile_update project.
 """
 
 import hashlib
+import json
 import logging
 import os
 import re
@@ -13,6 +14,7 @@ import threading
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from typing import Any, Optional
 
 import feedparser
@@ -372,6 +374,70 @@ class GoodreadsClient:
             return []
 
 
+class AudiobookshelfClient:
+    def __init__(self, server_url: str, token: str):
+        self.server_url = server_url.rstrip("/")
+        self.token = token
+        self._headers = {"Authorization": f"Bearer {token}"}
+
+    def get_in_progress_books(self) -> list[dict]:
+        """Return all books with progress > 0 that are not finished."""
+        try:
+            resp = requests.get(
+                f"{self.server_url}/api/me/media-progress",
+                headers=self._headers,
+                timeout=10,
+            )
+            resp.raise_for_status()
+            return [
+                item for item in resp.json()
+                if item.get("mediaItemType") == "book"
+                and not item.get("isFinished")
+                and item.get("progress", 0) > 0
+            ]
+        except Exception as e:
+            logger.error(f"Audiobookshelf media-progress failed: {e}")
+            return []
+
+    def get_book_metadata(self, library_item_id: str) -> dict | None:
+        """Fetch title, author, year, and genres for a library item."""
+        try:
+            resp = requests.get(
+                f"{self.server_url}/api/items/{library_item_id}",
+                headers=self._headers,
+                timeout=10,
+            )
+            resp.raise_for_status()
+            meta = resp.json().get("media", {}).get("metadata", {})
+            year = meta.get("publishedYear") or (
+                (meta.get("publishedDate") or "")[:4] or None
+            )
+            return {
+                "id": library_item_id,
+                "title": meta.get("title") or "Unknown Title",
+                "author": meta.get("authorName") or "",
+                "year": year,
+                "genres": meta.get("genres") or [],
+            }
+        except Exception as e:
+            logger.error(f"Audiobookshelf item metadata failed ({library_item_id}): {e}")
+            return None
+
+    def get_cover_bytes(self, library_item_id: str) -> bytes | None:
+        """Download the book cover image."""
+        try:
+            resp = requests.get(
+                f"{self.server_url}/api/items/{library_item_id}/cover",
+                headers=self._headers,
+                timeout=15,
+            )
+            resp.raise_for_status()
+            return resp.content
+        except Exception as e:
+            logger.error(f"Audiobookshelf cover download failed ({library_item_id}): {e}")
+            return None
+
+
 def _format_stars(rating: float | None) -> str:
     if rating is None:
         return ""
@@ -420,6 +486,32 @@ def _format_book_finished_toot(event: dict, settings: dict) -> str:
     return f"{emoji}Just finished reading: {event['book_title']}{author_str}{rating_str}\n\n{hashtags}"
 
 
+def _format_abs_toot(book: dict, settings: dict) -> str:
+    """Format a toot for a newly started Audiobookshelf book."""
+    title = book.get("title", "Unknown")
+    author = book.get("author", "")
+    year = book.get("year", "")
+    genres = book.get("genres", [])
+
+    title_line = f"{title} [{year}]" if year else title
+
+    # Convert genres to hashtags: "Science Fiction" → "#ScienceFiction"
+    genre_tags = " ".join(
+        "#" + "".join(w.capitalize() for w in g.split())
+        for g in genres[:5]
+    )
+
+    base_tags = settings.get("pu_abs_hashtags", "").strip() or "#NowReading #Audiobooks #Books"
+    hashtags = f"{base_tags} {genre_tags}".strip() if genre_tags else base_tags
+
+    parts = [title_line]
+    if author:
+        parts.append(author)
+    parts.append("")
+    parts.append(hashtags)
+    return "\n".join(parts)
+
+
 # ── Profile Updater ──────────────────────────────────────────────
 
 # Default settings
@@ -432,6 +524,8 @@ DEFAULTS = {
     "pu_book_interval": "21600",
     "pu_show_emoji": "1",
     "pu_offline_message": "Nothing playing",
+    "pu_abs_interval": "900",
+    "pu_abs_hashtags": "#NowReading #Audiobooks #Books",
 }
 
 
@@ -460,6 +554,7 @@ class ProfileUpdater:
         self.last_music_update: float = 0
         self.last_movie_update: float = 0
         self.last_book_update: float = 0
+        self.last_abs_update: float = 0
         self.error: str | None = None
 
     def start(self):
@@ -492,7 +587,7 @@ class ProfileUpdater:
         }
 
     def _build_clients(self, settings: dict) -> tuple:
-        """Build music clients, letterboxd, goodreads from settings (only if enabled)."""
+        """Build music clients, letterboxd, goodreads, and audiobookshelf from settings."""
         music_clients = []
 
         if settings.get("pu_music_enabled") == "1":
@@ -529,7 +624,15 @@ class ProfileUpdater:
             if gr_rss:
                 goodreads = GoodreadsClient(gr_rss)
 
-        return music_clients, letterboxd, goodreads
+        # Audiobookshelf
+        audiobookshelf = None
+        if settings.get("pu_abs_enabled") == "1":
+            abs_url = settings.get("pu_abs_url", "").strip()
+            abs_token = settings.get("pu_abs_token", "").strip()
+            if abs_url and abs_token:
+                audiobookshelf = AudiobookshelfClient(abs_url, abs_token)
+
+        return music_clients, letterboxd, goodreads, audiobookshelf
 
     def _get_mastodon_client(self, settings: dict) -> Mastodon | None:
         instance = settings.get("instance_url")
@@ -626,7 +729,7 @@ class ProfileUpdater:
             with get_db() as conn:
                 settings = get_all_settings(conn)
 
-            music_clients, letterboxd, goodreads = self._build_clients(settings)
+            music_clients, letterboxd, goodreads, audiobookshelf = self._build_clients(settings)
             mastodon = self._get_mastodon_client(settings)
             custom_enabled = settings.get("pu_custom_enabled") == "1"
 
@@ -635,7 +738,7 @@ class ProfileUpdater:
                 self.running = False
                 return
 
-            if not music_clients and not letterboxd and not goodreads and not custom_enabled:
+            if not music_clients and not letterboxd and not goodreads and not custom_enabled and not audiobookshelf:
                 self.error = "No sources enabled"
                 self.running = False
                 return
@@ -643,6 +746,7 @@ class ProfileUpdater:
             music_interval = int(_s(settings, "pu_music_interval"))
             movie_interval = int(_s(settings, "pu_movie_interval"))
             book_interval = int(_s(settings, "pu_book_interval"))
+            abs_interval = max(60, int(_s(settings, "pu_abs_interval")))
             loop_interval = min(music_interval, 60)
 
             # Set custom field on first run
@@ -745,6 +849,48 @@ class ProfileUpdater:
                                         logger.info("Posted weekly top artists toot")
                                     except MastodonError as e:
                                         logger.error(f"Failed to post weekly artists toot: {e}")
+
+                    # Audiobookshelf — toot when a new book is started
+                    if audiobookshelf and now - self.last_abs_update >= abs_interval:
+                        in_progress = audiobookshelf.get_in_progress_books()
+                        with get_db() as conn:
+                            raw = get_setting(conn, "pu_abs_tooted_ids")
+                        tooted_ids: set[str] = set(json.loads(raw)) if raw else set()
+
+                        for item in in_progress:
+                            item_id = item.get("libraryItemId")
+                            if not item_id or item_id in tooted_ids:
+                                continue
+                            book = audiobookshelf.get_book_metadata(item_id)
+                            if not book:
+                                tooted_ids.add(item_id)  # skip broken items
+                                continue
+                            toot_text = _format_abs_toot(book, settings)
+                            # Try to attach cover image
+                            media_ids = None
+                            cover_bytes = audiobookshelf.get_cover_bytes(item_id)
+                            if cover_bytes:
+                                try:
+                                    media = mastodon.media_post(
+                                        BytesIO(cover_bytes),
+                                        mime_type="image/jpeg",
+                                        description=f"Cover of {book['title']}",
+                                    )
+                                    media_ids = [media["id"]]
+                                except MastodonError as e:
+                                    logger.error(f"Failed to upload ABS cover ({book['title']}): {e}")
+                            try:
+                                mastodon.status_post(toot_text, media_ids=media_ids, visibility="public")
+                                logger.info(f"Posted ABS toot: {book['title']}")
+                            except MastodonError as e:
+                                logger.error(f"Failed to post ABS toot ({book['title']}): {e}")
+                            tooted_ids.add(item_id)
+
+                        # Persist updated set (cap at 500 to avoid unbounded growth)
+                        updated = list(tooted_ids)[-500:]
+                        with get_db() as conn:
+                            set_setting(conn, "pu_abs_tooted_ids", json.dumps(updated))
+                        self.last_abs_update = now
 
                     # Push all managed fields in one API call when anything changes
                     if changed or needs_update:

@@ -156,9 +156,11 @@ async def lifespan(app: FastAPI):
     logger.info(f"Poll interval: {POLL_INTERVAL} minutes")
     _start_scheduler()
 
-    # Start profile updater if enabled
+    # Start profile updater if enabled (profile fields, ABS, or both)
     with get_db() as conn:
-        if get_setting(conn, "pu_enabled") == "1" and is_configured(conn):
+        pu_on = get_setting(conn, "pu_enabled") == "1"
+        abs_on = get_setting(conn, "pu_abs_enabled") == "1"
+        if (pu_on or abs_on) and is_configured(conn):
             profile_updater.start()
 
     yield
@@ -710,6 +712,24 @@ PU_CHECKBOX_KEYS = [
     "pu_custom_enabled", "pu_show_emoji", "pu_weekly_artists_enabled",
     "pu_books_post_start", "pu_books_post_finish",
 ]
+
+ABS_SETTINGS_KEYS = ["pu_abs_url", "pu_abs_token", "pu_abs_hashtags", "pu_abs_interval"]
+
+
+@app.post("/settings/audiobookshelf")
+async def settings_audiobookshelf(request: Request):
+    auth = _require_auth(request)
+    if auth:
+        return auth
+    form = await request.form()
+    with get_db() as conn:
+        for key in ABS_SETTINGS_KEYS:
+            set_setting(conn, key, str(form.get(key, "")).strip())
+        set_setting(conn, "pu_abs_enabled", "1" if form.get("pu_abs_enabled") else "0")
+    profile_updater.stop()
+    if form.get("pu_abs_enabled"):
+        profile_updater.start()
+    return RedirectResponse(url="/settings?saved=1#audiobookshelf", status_code=302)
 
 
 @app.get("/tools")

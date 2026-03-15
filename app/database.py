@@ -1,4 +1,5 @@
 import json
+import logging
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -151,8 +152,18 @@ def _serialize_json(obj) -> str:
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+    except sqlite3.OperationalError as e:
+        conn.close()
+        if "readonly" in str(e):
+            logging.getLogger(__name__).error(
+                f"Database at {DB_PATH} is read-only. "
+                "Check file permissions on the host volume. "
+                "Run: sudo chown -R 1000:1000 data"
+            )
+        raise
     try:
         yield conn
         conn.commit()

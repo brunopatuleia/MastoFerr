@@ -754,7 +754,7 @@ async def settings_auto_toots(request: Request):
             set_setting(conn, key, "1" if form.get(key) else "0")
     profile_updater.stop()
     profile_updater.start()
-    return RedirectResponse(url="/settings?saved=1#auto-toots", status_code=302)
+    return RedirectResponse(url="/settings?saved=1#toots-updater", status_code=302)
 
 
 @app.get("/tools")

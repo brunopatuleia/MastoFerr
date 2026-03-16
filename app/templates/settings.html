@@ -17,8 +17,7 @@
         <span class="sidebar-heading">Settings</span>
         <a href="#ai-roast" data-panel="ai-roast">AI Roast</a>
         <a href="#profile-updater" data-panel="profile-updater">Profile Updater</a>
-        <a href="#profile-fields" data-panel="profile-fields">Profile Fields</a>
-        <a href="#auto-toots" data-panel="auto-toots">Auto Toots</a>
+        <a href="#toots-updater" data-panel="toots-updater">Toots Updater</a>
 
         <span class="sidebar-heading">App</span>
         <a href="#about" data-panel="about">About</a>
@@ -88,6 +87,7 @@
         <!-- ─── Profile Updater ─────────────────────────────────── -->
         <div id="panel-profile-updater" class="settings-panel">
             <h1>Profile Updater</h1>
+
             <div class="settings-section">
                 <div class="tools-status-header">
                     <h2>Status</h2>
@@ -96,7 +96,7 @@
                     </span>
                 </div>
                 <p class="setup-hint" style="margin-bottom: 0.5rem;">Automatically updates your Mastodon profile fields with what you're listening to, watching, or reading.</p>
-                <p class="setup-hint" style="margin-bottom: 1rem; color: var(--orange);">Mastodon allows a maximum of 4 profile fields. Enable only what you need to leave room for other fields.</p>
+                <p class="setup-hint" style="margin-bottom: 1rem; color: var(--orange);">Mastodon allows a maximum of 4 profile fields. Enable only what you need.</p>
 
                 {% if pu_status.error %}
                 <div class="error-msg" style="margin-bottom: 1rem;">{{ pu_status.error }}</div>
@@ -125,16 +125,11 @@
                     {% endif %}
                 </div>
             </div>
-        </div>
-
-        <!-- ─── Profile Fields ──────────────────────────────────── -->
-        <div id="panel-profile-fields" class="settings-panel">
-            <h1>Profile Fields</h1>
 
             <form action="/settings/profile-updater" method="post" class="setup-form">
                 <input type="hidden" name="pu_field_order" id="pu_field_order" value="{{ settings.get('pu_field_order', 'music,movies,books,custom') }}">
 
-                <p class="setup-hint" style="margin-bottom: 1rem;">Drag sections to reorder how fields appear on your Mastodon profile.</p>
+                <p class="setup-hint" style="margin: 1rem 0;">Drag sections to reorder how fields appear on your Mastodon profile.</p>
 
                 <div id="sortable-container" class="settings-grid">
                     {% for section_key in field_order %}
@@ -148,7 +143,7 @@
                         </label>
 
                         <div id="music-fields" style="{{ '' if settings.get('pu_music_enabled', '0') == '1' else 'display:none;' }}">
-                            <p class="setup-hint" style="margin-bottom: 1rem;">Configure at least one music source. If multiple are configured, they are tried in order: Last.fm, ListenBrainz, Navidrome.</p>
+                            <p class="setup-hint" style="margin-bottom: 1rem;">Configure at least one source. If multiple are configured, they are tried in order: Last.fm, ListenBrainz, Navidrome.</p>
 
                             <h3 style="margin-top: 1rem; font-size: 0.95rem;">Last.fm</h3>
                             <label for="pu_lastfm_username">Username</label>
@@ -238,7 +233,7 @@
                         </label>
 
                         <div id="custom-fields" style="{{ '' if settings.get('pu_custom_enabled', '0') == '1' else 'display:none;' }}">
-                            <p class="setup-hint" style="margin-bottom: 1rem;">Add a custom profile field with any text you want.</p>
+                            <p class="setup-hint" style="margin-bottom: 1rem;">Add a custom profile field with any static text.</p>
 
                             <label for="pu_custom_field_name">Profile field name</label>
                             <input type="text" id="pu_custom_field_name" name="pu_custom_field_name" placeholder="e.g. STATUS, WEBSITE, PRONOUNS" value="{{ settings.get('pu_custom_field_name', '') }}">
@@ -252,79 +247,45 @@
                     {% endfor %}
                 </div>
 
-                <!-- Behavior -->
                 <div class="settings-section" style="margin-top: 1.5rem;">
                     <h2>Behavior</h2>
-
                     <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                         <input type="checkbox" name="pu_show_emoji" value="1" {{ 'checked' if settings.get('pu_show_emoji', '1') == '1' }}>
                         Show emoji in profile fields
                     </label>
-
-                    <button type="submit" class="btn btn-sync" style="margin-top: 1rem;">Save Profile Fields</button>
+                    <button type="submit" class="btn btn-sync" style="margin-top: 1rem;">Save Profile Updater</button>
                 </div>
             </form>
         </div>
 
-        <!-- ─── Auto Toots ──────────────────────────────────────── -->
-        <div id="panel-auto-toots" class="settings-panel">
-            <h1>Auto Toots</h1>
-            <p class="setup-hint" style="margin-bottom: 1.5rem;">Configure automatic posts to your Mastodon account.</p>
+        <!-- ─── Toots Updater ───────────────────────────────────── -->
+        <div id="panel-toots-updater" class="settings-panel">
+            <h1>Toots Updater</h1>
+            <p class="setup-hint" style="margin-bottom: 1.5rem;">Automatically post to your Mastodon when something happens. Enable or disable each source independently.</p>
 
             <form action="/settings/auto-toots" method="post" class="setup-form">
 
-                <!-- Weekly Recap -->
+                <!-- Navidrome album -->
                 <div class="settings-section">
-                    <h2>Weekly Music Recap</h2>
-                    <p class="setup-hint" style="margin-bottom: 0.75rem;">Post your top 5 artists of the week every Monday at midnight. Uses whichever music source is configured in Profile Fields (Last.fm, ListenBrainz, or Navidrome).</p>
-                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" name="pu_weekly_artists_enabled" value="1" {{ 'checked' if settings.get('pu_weekly_artists_enabled', '0') == '1' }}>
-                        Post weekly top artists recap every Monday
+                    <label class="pu-section-toggle">
+                        <input type="checkbox" name="pu_album_enabled" value="1" {{ 'checked' if settings.get('pu_album_enabled', '0') == '1' }} onchange="toggleSection('album-fields', this.checked)">
+                        <h2>Navidrome — Album Finished</h2>
                     </label>
-                    <label for="pu_weekly_artists_hashtags" style="margin-top: 0.75rem;">Hashtags</label>
-                    <input type="text" id="pu_weekly_artists_hashtags" name="pu_weekly_artists_hashtags" placeholder="#music #weeklyrecap" value="{{ settings.get('pu_weekly_artists_hashtags', '') }}">
-                    <p class="setup-hint" style="margin-top: 0.25rem;">Space-separated. Leave blank for defaults.</p>
-                </div>
-
-                <!-- Book Activity Posts -->
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>Book Activity Posts (Goodreads)</h2>
-                    <p class="setup-hint" style="margin-bottom: 0.75rem;">Post publicly when your Goodreads activity changes. Requires Goodreads RSS configured in Profile Fields → Books.</p>
-                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
-                        <input type="checkbox" name="pu_books_post_start" value="1" {{ 'checked' if settings.get('pu_books_post_start', '0') == '1' }}>
-                        Post when I start reading a book
-                    </label>
-                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" name="pu_books_post_finish" value="1" {{ 'checked' if settings.get('pu_books_post_finish', '0') == '1' }}>
-                        Post when I finish a book
-                    </label>
-                    <label for="pu_books_hashtags" style="margin-top: 0.75rem;">Hashtags</label>
-                    <input type="text" id="pu_books_hashtags" name="pu_books_hashtags" placeholder="#books #amreading #bookworm" value="{{ settings.get('pu_books_hashtags', '') }}">
-                    <p class="setup-hint" style="margin-top: 0.25rem;">Space-separated. Used in both start and finish posts. Leave blank for defaults.</p>
-                </div>
-
-                <!-- Album Listening -->
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>Album Listening Posts (Navidrome)</h2>
-                    <p class="setup-hint" style="margin-bottom: 0.75rem;">Post when you finish listening to an album (≥75% of tracks heard in a session). Requires Navidrome configured in Profile Fields → Music.</p>
-                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" name="pu_album_enabled" value="1" {{ 'checked' if settings.get('pu_album_enabled', '0') == '1' }}>
-                        Post when I finish listening to an album
-                    </label>
-                    <label for="pu_album_hashtags" style="margin-top: 0.75rem;">Hashtags</label>
-                    <input type="text" id="pu_album_hashtags" name="pu_album_hashtags" placeholder="#NowPlaying" value="{{ settings.get('pu_album_hashtags', '') }}">
-                    <p class="setup-hint" style="margin-top: 0.25rem;">Genres from Navidrome are appended automatically. Leave blank for defaults.</p>
+                    <p class="setup-hint" style="margin: 0.4rem 0 0.75rem 0;">Posts when you finish listening to an album (≥75% of tracks in one session). Requires Navidrome configured in Profile Updater.</p>
+                    <div id="album-fields" style="{{ '' if settings.get('pu_album_enabled', '0') == '1' else 'display:none;' }}">
+                        <label for="pu_album_hashtags">Hashtags</label>
+                        <input type="text" id="pu_album_hashtags" name="pu_album_hashtags" placeholder="#NowPlaying" value="{{ settings.get('pu_album_hashtags', '') }}">
+                        <p class="setup-hint" style="margin-top: 0.25rem;">Genres from Navidrome are appended automatically. Leave blank for defaults.</p>
+                    </div>
                 </div>
 
                 <!-- Audiobookshelf -->
                 <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>Audiobookshelf</h2>
-                    <p class="setup-hint" style="margin-bottom: 0.75rem;">Post a toot automatically when you start a new audiobook. Tootkeeper polls your Audiobookshelf server and posts once per book.</p>
-                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 1rem;">
+                    <label class="pu-section-toggle">
                         <input type="checkbox" name="pu_abs_enabled" value="1" {{ 'checked' if settings.get('pu_abs_enabled', '0') == '1' }} onchange="toggleSection('abs-fields', this.checked)">
-                        Enable Audiobookshelf posting
+                        <h2>Audiobookshelf — New Audiobook</h2>
                     </label>
-
+                    <p class="setup-hint" style="margin: 0.4rem 0 0.75rem 0;">Posts when you start a new audiobook. Tootkeeper polls your Audiobookshelf server and posts once per book.</p>
                     <div id="abs-fields" style="{{ '' if settings.get('pu_abs_enabled', '0') == '1' else 'display:none;' }}">
                         <label for="pu_abs_url">Server URL</label>
                         <input type="text" id="pu_abs_url" name="pu_abs_url" placeholder="http://192.168.1.x:13378" value="{{ settings.get('pu_abs_url', '') }}">
@@ -334,32 +295,54 @@
 
                         <label for="pu_abs_hashtags" style="margin-top: 0.75rem;">Hashtags</label>
                         <input type="text" id="pu_abs_hashtags" name="pu_abs_hashtags" placeholder="#NowReading #Audiobooks #Books" value="{{ settings.get('pu_abs_hashtags', '') }}">
-                        <p class="setup-hint" style="margin-top: 0.25rem;">Space-separated. Genres from Audiobookshelf are appended automatically. Leave blank for defaults.</p>
+                        <p class="setup-hint" style="margin-top: 0.25rem;">Genres from Audiobookshelf are appended automatically. Leave blank for defaults.</p>
 
                         <label for="pu_abs_interval" style="margin-top: 0.75rem;">Check interval (seconds)</label>
                         <input type="number" id="pu_abs_interval" name="pu_abs_interval" min="60" placeholder="900" value="{{ settings.get('pu_abs_interval', '900') }}">
-
-                        <div class="setup-hint" style="margin-top: 1rem; padding: 0.75rem; background: var(--bg-secondary, #1a1a1a); border-radius: 6px;">
-                            <strong>Post format:</strong><br>
-                            Book Title [year]<br>
-                            Author<br>
-                            [cover image]<br>
-                            #NowReading #Audiobooks #Books #Genre1 #Genre2
-                        </div>
                     </div>
+                </div>
+
+                <!-- Weekly recap -->
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <label class="pu-section-toggle">
+                        <input type="checkbox" name="pu_weekly_artists_enabled" value="1" {{ 'checked' if settings.get('pu_weekly_artists_enabled', '0') == '1' }} onchange="toggleSection('weekly-fields', this.checked)">
+                        <h2>Last.fm — Weekly Top Artists</h2>
+                    </label>
+                    <p class="setup-hint" style="margin: 0.4rem 0 0.75rem 0;">Posts your top 5 artists every Monday at midnight. Uses whichever music source is configured (Last.fm, ListenBrainz, or Navidrome).</p>
+                    <div id="weekly-fields" style="{{ '' if settings.get('pu_weekly_artists_enabled', '0') == '1' else 'display:none;' }}">
+                        <label for="pu_weekly_artists_hashtags">Hashtags</label>
+                        <input type="text" id="pu_weekly_artists_hashtags" name="pu_weekly_artists_hashtags" placeholder="#music #weeklyrecap" value="{{ settings.get('pu_weekly_artists_hashtags', '') }}">
+                        <p class="setup-hint" style="margin-top: 0.25rem;">Leave blank for defaults.</p>
+                    </div>
+                </div>
+
+                <!-- Goodreads book events -->
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>Goodreads — Book Events</h2>
+                    <p class="setup-hint" style="margin: 0.4rem 0 0.75rem 0;">Posts when your Goodreads activity changes. Requires Goodreads RSS configured in Profile Updater → Books.</p>
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.4rem;">
+                        <input type="checkbox" name="pu_books_post_start" value="1" {{ 'checked' if settings.get('pu_books_post_start', '0') == '1' }}>
+                        Post when I start reading a book
+                    </label>
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" name="pu_books_post_finish" value="1" {{ 'checked' if settings.get('pu_books_post_finish', '0') == '1' }}>
+                        Post when I finish a book
+                    </label>
+                    <label for="pu_books_hashtags" style="margin-top: 0.75rem;">Hashtags</label>
+                    <input type="text" id="pu_books_hashtags" name="pu_books_hashtags" placeholder="#books #amreading" value="{{ settings.get('pu_books_hashtags', '') }}">
+                    <p class="setup-hint" style="margin-top: 0.25rem;">Leave blank for defaults.</p>
                 </div>
 
                 <!-- AI Roast -->
                 <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>AI Roast</h2>
-                    <p class="setup-hint" style="margin-bottom: 0.75rem;">Requires AI provider configured in AI Roast settings.</p>
-                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <label class="pu-section-toggle">
                         <input type="checkbox" name="pu_roast_toot_enabled" value="1" {{ 'checked' if settings.get('pu_roast_toot_enabled', '0') == '1' }}>
-                        Post roast to Mastodon when manually regenerated
+                        <h2>AI Roast — Post to Mastodon</h2>
                     </label>
+                    <p class="setup-hint" style="margin: 0.4rem 0 0;">Posts your roast to Mastodon when you manually regenerate it. Requires AI provider configured in AI Roast settings.</p>
                 </div>
 
-                <button type="submit" class="btn btn-sync" style="margin-top: 1.5rem;">Save Auto Toots</button>
+                <button type="submit" class="btn btn-sync" style="margin-top: 1.5rem;">Save Toots Updater</button>
             </form>
         </div>
 
@@ -405,7 +388,6 @@
         });
     });
 
-    // Handle initial hash
     var hash = window.location.hash.replace('#', '');
     if (hash && document.getElementById('panel-' + hash)) {
         showPanel(hash);

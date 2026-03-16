@@ -709,11 +709,16 @@ async def api_sync(request: Request):
 
 # ─── Profile Updater ─────────────────────────────────────────────
 
-PU_SETTINGS_KEYS = [
+SERVICES_SETTINGS_KEYS = [
     "pu_lastfm_username", "pu_lastfm_api_key",
     "pu_listenbrainz_username", "pu_listenbrainz_token",
     "pu_navidrome_url", "pu_navidrome_username", "pu_navidrome_password",
-    "pu_letterboxd_rss_url", "pu_goodreads_rss_url",
+    "pu_letterboxd_rss_url",
+    "pu_goodreads_rss_url",
+    "pu_abs_url", "pu_abs_token",
+]
+
+PU_SETTINGS_KEYS = [
     "pu_music_field_name", "pu_movie_field_name", "pu_book_field_name",
     "pu_music_interval", "pu_movie_interval", "pu_book_interval",
     "pu_custom_field_name", "pu_custom_field_value",
@@ -729,7 +734,7 @@ AUTO_TOOTS_SETTINGS_KEYS = [
     "pu_weekly_artists_hashtags",
     "pu_books_hashtags",
     "pu_album_hashtags",
-    "pu_abs_url", "pu_abs_token", "pu_abs_hashtags", "pu_abs_interval",
+    "pu_abs_hashtags", "pu_abs_interval",
 ]
 
 AUTO_TOOTS_CHECKBOX_KEYS = [
@@ -739,6 +744,20 @@ AUTO_TOOTS_CHECKBOX_KEYS = [
     "pu_abs_enabled",
     "pu_roast_toot_enabled",
 ]
+
+
+@app.post("/settings/services")
+async def settings_services(request: Request):
+    auth = _require_auth(request)
+    if auth:
+        return auth
+    form = await request.form()
+    with get_db() as conn:
+        for key in SERVICES_SETTINGS_KEYS:
+            set_setting(conn, key, str(form.get(key, "")).strip())
+    profile_updater.stop()
+    profile_updater.start()
+    return RedirectResponse(url="/settings?saved=1#services", status_code=302)
 
 
 @app.post("/settings/auto-toots")

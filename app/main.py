@@ -73,6 +73,20 @@ def _is_authenticated(request: Request) -> bool:
     return request.cookies.get(_AUTH_COOKIE) == _auth_token()
 
 
+_BLOCKED_HOSTS = {"169.254.169.254", "169.254.170.2", "metadata.google.internal"}
+
+def _safe_url(url: str) -> bool:
+    """Return False for cloud metadata endpoints. Private IPs are allowed (homelab)."""
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        return (parsed.hostname or "") not in _BLOCKED_HOSTS
+    except Exception:
+        return False
+
+
 def _safe_next(url: str) -> str:
     """Allow only relative paths to prevent open redirect attacks."""
     if url and url.startswith("/") and not url.startswith("//"):
@@ -263,7 +277,7 @@ async def login_submit(request: Request):
     next_url = _safe_next(str(form.get("next", "/")))
     if APP_PASSWORD and hmac.compare_digest(password, APP_PASSWORD):
         response = RedirectResponse(url=next_url, status_code=302)
-        response.set_cookie(_AUTH_COOKIE, _auth_token(), httponly=True, samesite="lax")
+        response.set_cookie(_AUTH_COOKIE, _auth_token(), httponly=True, samesite="strict")
         return response
     return templates.TemplateResponse("login.html", {
         "request": request, "next": next_url, "error": "Incorrect password",
@@ -309,7 +323,13 @@ async def auth_login(request: Request):
     if not instance_url.startswith("http"):
         instance_url = "https://" + instance_url
 
+    if not _safe_url(instance_url):
+        return RedirectResponse(url="/setup?error=Invalid+instance+URL", status_code=302)
+
     redirect_uri = APP_URL.rstrip("/") + "/auth/callback"
+
+    # Generate OAuth state token to prevent CSRF on the callback
+    oauth_state = secrets.token_hex(16)
 
     try:
         # Register the app with the instance
@@ -337,8 +357,13 @@ async def auth_login(request: Request):
             scopes=OAUTH_SCOPES.split(),
             redirect_uris=redirect_uri,
         )
+        # Append state parameter manually (Mastodon.py doesn't expose it)
+        separator = "&" if "?" in auth_url else "?"
+        auth_url = f"{auth_url}{separator}state={oauth_state}"
 
-        return RedirectResponse(url=auth_url, status_code=302)
+        response = RedirectResponse(url=auth_url, status_code=302)
+        response.set_cookie("oauth_state", oauth_state, httponly=True, samesite="lax", max_age=600)
+        return response
 
     except Exception as e:
         logger.exception("Failed to register app with instance")
@@ -350,10 +375,15 @@ async def auth_login(request: Request):
 
 
 @app.get("/auth/callback")
-async def auth_callback(request: Request, code: str = ""):
+async def auth_callback(request: Request, code: str = "", state: str = ""):
     """Handle the OAuth callback from the Mastodon instance."""
     if not code:
         return RedirectResponse(url="/setup?error=Authorization+was+denied+or+failed", status_code=302)
+
+    # Verify OAuth state to prevent CSRF on the callback
+    expected_state = request.cookies.get("oauth_state", "")
+    if not expected_state or not hmac.compare_digest(state, expected_state):
+        return RedirectResponse(url="/setup?error=Invalid+OAuth+state.+Please+try+again.", status_code=302)
 
     with get_db() as conn:
         instance_url = get_setting(conn, "instance_url")
@@ -392,7 +422,9 @@ async def auth_callback(request: Request, code: str = ""):
         # Start syncing now that we have credentials
         _start_scheduler()
 
-        return RedirectResponse(url="/", status_code=302)
+        response = RedirectResponse(url="/", status_code=302)
+        response.delete_cookie("oauth_state")
+        return response
 
     except Exception as e:
         logger.exception("OAuth callback failed")

@@ -27,6 +27,20 @@ from app.database import get_all_settings, get_db, get_setting, set_setting
 
 logger = logging.getLogger(__name__)
 
+_BLOCKED_HOSTS = {"169.254.169.254", "169.254.170.2", "metadata.google.internal"}
+
+
+def _safe_url(url: str) -> bool:
+    """Block cloud metadata endpoints. Private IPs are intentionally allowed (homelab)."""
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        return (parsed.hostname or "") not in _BLOCKED_HOSTS
+    except Exception:
+        return False
+
 # ── Media source clients ─────────────────────────────────────────
 
 
@@ -833,7 +847,7 @@ class ProfileUpdater:
             nd_url = settings.get("pu_navidrome_url", "").strip()
             nd_user = settings.get("pu_navidrome_username", "").strip()
             nd_pass = settings.get("pu_navidrome_password", "").strip()
-            if nd_url and nd_user and nd_pass:
+            if nd_url and nd_user and nd_pass and _safe_url(nd_url):
                 music_clients.append(NavidromeClient(nd_url, nd_user, nd_pass))
 
             # Spotify
@@ -847,19 +861,19 @@ class ProfileUpdater:
             jf_url = settings.get("pu_jellyfin_url", "").strip()
             jf_key = settings.get("pu_jellyfin_api_key", "").strip()
             jf_user = settings.get("pu_jellyfin_user_id", "").strip()
-            if jf_url and jf_key:
+            if jf_url and jf_key and _safe_url(jf_url):
                 music_clients.append(JellyfinClient(jf_url, jf_key, jf_user))
 
             # Plex
             plex_url = settings.get("pu_plex_url", "").strip()
             plex_token = settings.get("pu_plex_token", "").strip()
-            if plex_url and plex_token:
+            if plex_url and plex_token and _safe_url(plex_url):
                 music_clients.append(PlexClient(plex_url, plex_token))
 
             # Tautulli
             tautulli_url = settings.get("pu_tautulli_url", "").strip()
             tautulli_key = settings.get("pu_tautulli_api_key", "").strip()
-            if tautulli_url and tautulli_key:
+            if tautulli_url and tautulli_key and _safe_url(tautulli_url):
                 music_clients.append(TautulliClient(tautulli_url, tautulli_key))
 
         # Letterboxd
@@ -881,7 +895,7 @@ class ProfileUpdater:
         if settings.get("pu_abs_enabled") == "1":
             abs_url = settings.get("pu_abs_url", "").strip()
             abs_token = settings.get("pu_abs_token", "").strip()
-            if abs_url and abs_token:
+            if abs_url and abs_token and _safe_url(abs_url):
                 audiobookshelf = AudiobookshelfClient(abs_url, abs_token)
 
         return music_clients, letterboxd, goodreads, audiobookshelf

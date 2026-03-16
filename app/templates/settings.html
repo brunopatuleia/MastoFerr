@@ -380,14 +380,6 @@
                     <p class="setup-hint" style="margin-top: 0.25rem;">Leave blank for defaults.</p>
                 </div>
 
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <label class="pu-section-toggle">
-                        <input type="checkbox" name="pu_roast_toot_enabled" value="1" {{ 'checked' if settings.get('pu_roast_toot_enabled', '0') == '1' }}>
-                        <h2>AI Roast</h2>
-                    </label>
-                    <p class="setup-hint" style="margin: 0.4rem 0 0;">Posts your roast to Mastodon when you manually regenerate it.</p>
-                </div>
-
                 <button type="submit" class="btn btn-sync" style="margin-top: 1.5rem;">Save Auto Toots</button>
             </form>
         </div>

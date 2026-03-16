@@ -774,6 +774,22 @@ h2 {
     cursor: not-allowed;
 }
 
+.roast-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-toot-roast {
+    background: var(--accent);
+    color: white;
+    font-size: 0.8rem;
+    padding: 0.35rem 0.75rem;
+}
+
+.btn-toot-roast:hover { opacity: 0.85; }
+.btn-toot-roast:disabled { opacity: 0.6; cursor: not-allowed; }
+
 .roast-text {
     color: var(--text);
     font-size: 1.05rem;

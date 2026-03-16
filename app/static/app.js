@@ -54,6 +54,30 @@ async function regenerateRoast() {
     }
 }
 
+async function tootRoast() {
+    const btn = document.getElementById('toot-roast-btn');
+    const text = document.getElementById('roast-text');
+
+    btn.disabled = true;
+    btn.textContent = 'Tooting...';
+
+    try {
+        const response = await fetch('/api/roast/toot', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.status === 'ok') {
+            btn.textContent = 'Tooted!';
+            setTimeout(() => { btn.textContent = 'Toot This'; btn.disabled = false; }, 3000);
+            return;
+        } else {
+            btn.textContent = data.message || 'Failed';
+        }
+    } catch (err) {
+        btn.textContent = 'Failed';
+    }
+    setTimeout(() => { btn.textContent = 'Toot This'; btn.disabled = false; }, 3000);
+}
+
 async function checkVersion() {
     const container = document.getElementById('version-check');
     if (!container) return;

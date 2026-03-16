@@ -495,23 +495,33 @@ async def api_regenerate_roast(request: Request):
         _last_roast_request = now
     with get_db() as conn:
         roast = generate_roast(conn, force=True)
-        roast_toot_enabled = get_setting(conn, "pu_roast_toot_enabled") == "1"
     if not roast:
         return JSONResponse({"status": "error", "message": "AI not configured or API call failed"}, status_code=400)
 
-    tooted = False
-    if roast_toot_enabled:
-        creds = _get_credentials()
-        if creds:
-            try:
-                instance_url, access_token = creds
-                client = Mastodon(access_token=access_token, api_base_url=instance_url)
-                client.status_post(roast, visibility="public")
-                tooted = True
-            except Exception:
-                logger.exception("Failed to toot the roast")
+    return JSONResponse({"status": "ok", "roast": roast})
 
-    return JSONResponse({"status": "ok", "roast": roast, "tooted": tooted})
+
+@app.post("/api/roast/toot")
+async def api_toot_roast(request: Request):
+    """Post the current roast to Mastodon."""
+    auth = _require_auth_api(request)
+    if auth:
+        return auth
+    with get_db() as conn:
+        roast = get_setting(conn, "roast_current")
+    if not roast:
+        return JSONResponse({"status": "error", "message": "No roast to post"}, status_code=400)
+    creds = _get_credentials()
+    if not creds:
+        return JSONResponse({"status": "error", "message": "Mastodon not configured"}, status_code=400)
+    try:
+        instance_url, access_token = creds
+        client = Mastodon(access_token=access_token, api_base_url=instance_url)
+        client.status_post(roast, visibility="public")
+        return JSONResponse({"status": "ok"})
+    except Exception:
+        logger.exception("Failed to toot the roast")
+        return JSONResponse({"status": "error", "message": "Failed to post to Mastodon"}, status_code=500)
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -798,7 +808,6 @@ AUTO_TOOTS_CHECKBOX_KEYS = [
     "pu_books_post_start", "pu_books_post_finish",
     "pu_album_enabled",
     "pu_abs_enabled",
-    "pu_roast_toot_enabled",
 ]
 
 

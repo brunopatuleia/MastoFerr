@@ -235,6 +235,10 @@ Security hardening (v1.1.0+) was reviewed and applied by [Claude Code](https://c
 - Favorites/bookmarks sync cursor derived from fetched item IDs instead of unreliable pagination headers (Gemini)
 - GitHub version check result cached for 1 hour to avoid API rate limits (Gemini)
 - Explicit `rollback()` added to the database context manager (Gemini)
+- OAuth state parameter (CSRF token) generated on login, verified in callback, cleared on success
+- Auth session cookie upgraded from `SameSite=Lax` to `SameSite=Strict`
+- SSRF mitigation: user-supplied service URLs validated to block cloud metadata endpoints (169.254.169.254 etc.) while allowing private IPs for homelab use
+- Prompt injection mitigation: user toot content wrapped in XML delimiter tags before being inserted into AI roast prompt
 
 ## License
 

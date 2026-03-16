@@ -12,7 +12,9 @@ A self-hosted Mastodon activity archiver with full-text search. Automatically sa
 - **Hashtag & topic clouds** - See your most-used hashtags and topics at a glance
 - **Profile updater** - Auto-update your Mastodon profile fields with now-playing music (Last.fm/ListenBrainz/Navidrome), last-watched movie (Letterboxd), and last-read book (Goodreads)
 - **Audiobookshelf integration** - Post a toot with cover art automatically when you start a new audiobook
-- **AI-powered roast** - Optional AI roast on your dashboard that roasts your posting habits (supports Anthropic, OpenAI, Gemini, Ollama)
+- **Album listening posts** - Post automatically when you finish listening to an album on Navidrome (≥75% of tracks)
+- **Weekly music recap** - Post your top 5 artists every Monday (Last.fm, ListenBrainz, or Navidrome)
+- **AI-powered roast** - Optional AI roast on your dashboard that roasts your posting habits (supports Anthropic, OpenAI, Gemini, Ollama); optionally post it to Mastodon
 - **Optional password protection** - Lock the web UI behind a password with `APP_PASSWORD`
 - **OAuth login** - No tokens to copy/paste, just enter your instance and authorize
 - **Automatic sync** - Polls for new activity every 5 minutes (configurable)
@@ -137,7 +139,7 @@ Shows the last book you finished and rated, pulled from your Goodreads RSS feed.
 
 ### Book Activity Posts (Goodreads)
 
-Optionally post publicly to Mastodon when your Goodreads activity changes — when you start or finish a book. Enable the checkboxes in the Books section of Sources & Fields.
+Optionally post publicly to Mastodon when your Goodreads activity changes — when you start or finish a book. Enable the checkboxes in **Settings → Auto Toots → Book Activity Posts**.
 
 ### Custom Field
 
@@ -168,11 +170,35 @@ Genres are pulled directly from your Audiobookshelf metadata and appended as has
 ### Setup
 
 1. In Audiobookshelf, go to **Settings → API Keys** and create a new key
-2. In Tootkeeper, go to **Settings → Audiobookshelf**
+2. In Tootkeeper, go to **Settings → Auto Toots → Audiobookshelf**
 3. Enter your server URL (e.g. `http://192.168.1.x:13378`) and the API token
 4. Save — Tootkeeper polls every 15 minutes by default and posts once per book
 
 Already-posted book IDs are tracked in the database so you'll never get duplicate toots.
+
+## Album Listening Posts (Navidrome)
+
+Connect Tootkeeper to your Navidrome server to automatically post a toot with the album cover when you finish listening to an album. "Finished" means ≥75% of the album's tracks were heard in a single listening session (tracked between polls).
+
+**Post format:**
+```
+Artist Name
+[Year] Album Title
+
+[cover image]
+
+#NowPlaying #Rock #Alternative
+```
+
+Genres are pulled from Navidrome and appended as hashtags. Requires Navidrome configured in **Settings → Profile Fields → Music**.
+
+Enable in **Settings → Auto Toots → Album Listening Posts**.
+
+## Weekly Music Recap
+
+Post your top 5 most-listened artists of the past week every Monday at midnight. Uses whichever music source is configured (Last.fm, ListenBrainz, or Navidrome).
+
+Enable in **Settings → Auto Toots → Weekly Music Recap**. Customize the hashtags or leave blank for defaults (`#music #weeklyrecap`).
 
 ## What Gets Archived
 

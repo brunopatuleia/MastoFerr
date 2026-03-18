@@ -1068,7 +1068,9 @@ class ProfileUpdater:
                             )
                             if navidrome_client:
                                 album_id = track["albumId"]
-                                track_key = (track.get("discNumber", 1), track.get("track", 0))
+                                disc = track.get("discNumber", 1) or 1
+                                track_num = track.get("track", 0) or 0
+                                track_key = (disc, track_num)
 
                                 if not self._album_session or self._album_session["album_id"] != album_id:
                                     # New album started — fetch metadata and open a new session
@@ -1080,13 +1082,30 @@ class ProfileUpdater:
                                             "total_tracks": album_info["total_tracks"],
                                             "album_info": album_info,
                                             "posted": False,
+                                            "last_track_key": track_key,
                                         }
                                         logger.info(f"Album session started: {album_info['name']} ({album_info['total_tracks']} tracks)")
                                 elif not self._album_session["posted"]:
-                                    self._album_session["tracks_seen"].add(track_key)
+                                    last_key = self._album_session["last_track_key"]
+                                    # Reset if playing out of order (going backwards)
+                                    if track_key < last_key and track_key != last_key:
+                                        logger.info(f"Album session reset (out of order): {self._album_session['album_info']['name']}")
+                                        album_info = navidrome_client.get_album_info(album_id)
+                                        if album_info:
+                                            self._album_session = {
+                                                "album_id": album_id,
+                                                "tracks_seen": {track_key},
+                                                "total_tracks": album_info["total_tracks"],
+                                                "album_info": album_info,
+                                                "posted": False,
+                                                "last_track_key": track_key,
+                                            }
+                                    else:
+                                        self._album_session["tracks_seen"].add(track_key)
+                                        self._album_session["last_track_key"] = track_key
                                     total = self._album_session["total_tracks"]
                                     seen = len(self._album_session["tracks_seen"])
-                                    if total > 0 and seen / total >= 0.75:
+                                    if total > 0 and seen / total >= 0.65:
                                         album_info = self._album_session["album_info"]
                                         toot_text = _format_album_toot(album_info, settings)
                                         cover_bytes = navidrome_client.get_cover_art_bytes(

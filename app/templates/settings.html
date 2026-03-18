@@ -356,9 +356,28 @@
                         <input type="checkbox" name="pu_weekly_artists_enabled" value="1" {{ 'checked' if settings.get('pu_weekly_artists_enabled', '0') == '1' }} onchange="toggleSection('weekly-fields', this.checked)">
                         <h2>Weekly Top Artists</h2>
                     </label>
-                    <p class="setup-hint" style="margin: 0.4rem 0 0.75rem 0;">Posts your top 5 artists every Monday at midnight. Uses Last.fm, ListenBrainz, or Navidrome.</p>
+                    <p class="setup-hint" style="margin: 0.4rem 0 0.75rem 0;">Posts your top 5 artists on a configured day and hour. Uses Last.fm, ListenBrainz, or Navidrome.</p>
                     <div id="weekly-fields" style="{{ '' if settings.get('pu_weekly_artists_enabled', '0') == '1' else 'display:none;' }}">
-                        <label for="pu_weekly_artists_hashtags">Hashtags</label>
+                        <div style="display: flex; gap: 1rem;">
+                            <div style="flex: 1;">
+                                <label for="pu_weekly_artists_day">Day</label>
+                                <select id="pu_weekly_artists_day" name="pu_weekly_artists_day">
+                                    {% set day_val = settings.get('pu_weekly_artists_day', '0') %}
+                                    <option value="0" {{ 'selected' if day_val == '0' }}>Monday</option>
+                                    <option value="1" {{ 'selected' if day_val == '1' }}>Tuesday</option>
+                                    <option value="2" {{ 'selected' if day_val == '2' }}>Wednesday</option>
+                                    <option value="3" {{ 'selected' if day_val == '3' }}>Thursday</option>
+                                    <option value="4" {{ 'selected' if day_val == '4' }}>Friday</option>
+                                    <option value="5" {{ 'selected' if day_val == '5' }}>Saturday</option>
+                                    <option value="6" {{ 'selected' if day_val == '6' }}>Sunday</option>
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label for="pu_weekly_artists_hour">Hour (0–23)</label>
+                                <input type="number" id="pu_weekly_artists_hour" name="pu_weekly_artists_hour" min="0" max="23" placeholder="0" value="{{ settings.get('pu_weekly_artists_hour', '0') }}">
+                            </div>
+                        </div>
+                        <label for="pu_weekly_artists_hashtags" style="margin-top: 0.75rem;">Hashtags</label>
                         <input type="text" id="pu_weekly_artists_hashtags" name="pu_weekly_artists_hashtags" placeholder="#music #weeklyrecap" value="{{ settings.get('pu_weekly_artists_hashtags', '') }}">
                         <p class="setup-hint" style="margin-top: 0.25rem;">Leave blank for defaults.</p>
                     </div>

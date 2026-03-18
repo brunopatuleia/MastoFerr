@@ -466,22 +466,22 @@ class AudiobookshelfClient:
         self._headers = {"Authorization": f"Bearer {token}"}
 
     def get_in_progress_books(self) -> list[dict]:
-        """Return all books with progress > 0 that are not finished."""
+        """Return all books currently in progress."""
         try:
             resp = requests.get(
-                f"{self.server_url}/api/me/media-progress",
+                f"{self.server_url}/api/me/items-in-progress",
                 headers=self._headers,
                 timeout=10,
             )
             resp.raise_for_status()
+            items = resp.json().get("libraryItems", [])
             return [
-                item for item in resp.json()
-                if item.get("mediaItemType") == "book"
-                and not item.get("isFinished")
-                and item.get("progress", 0) > 0
+                {"libraryItemId": item["id"]}
+                for item in items
+                if item.get("mediaType") == "book"
             ]
         except Exception as e:
-            logger.error(f"Audiobookshelf media-progress failed: {e}")
+            logger.error(f"Audiobookshelf items-in-progress failed: {e}")
             return []
 
     def get_book_metadata(self, library_item_id: str) -> dict | None:
@@ -777,6 +777,8 @@ DEFAULTS = {
     "pu_abs_interval": "900",
     "pu_abs_hashtags": "#NowReading #Audiobooks #Books",
     "pu_album_hashtags": "#NowPlaying",
+    "pu_weekly_artists_day": "0",
+    "pu_weekly_artists_hour": "0",
 }
 
 
@@ -1158,10 +1160,12 @@ class ProfileUpdater:
 
                         self.last_book_update = now
 
-                    # Weekly top artists toot — posted at Monday 00:xx if enabled
+                    # Weekly top artists toot — posted on configured day/hour if enabled
                     if settings.get("pu_weekly_artists_enabled") == "1" and music_clients:
                         now_dt = datetime.now()
-                        if now_dt.weekday() == 0 and now_dt.hour == 0:
+                        weekly_day = int(_s(settings, "pu_weekly_artists_day"))
+                        weekly_hour = int(_s(settings, "pu_weekly_artists_hour"))
+                        if now_dt.weekday() == weekly_day and now_dt.hour == weekly_hour:
                             today_str = now_dt.strftime("%Y-%m-%d")
                             with get_db() as conn:
                                 last_posted = get_setting(conn, "pu_last_weekly_artists_date")

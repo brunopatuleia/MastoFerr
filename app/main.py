@@ -797,7 +797,7 @@ PU_CHECKBOX_KEYS = [
 ]
 
 AUTO_TOOTS_SETTINGS_KEYS = [
-    "pu_weekly_artists_hashtags",
+    "pu_weekly_artists_hashtags", "pu_weekly_artists_day", "pu_weekly_artists_hour",
     "pu_books_hashtags",
     "pu_album_hashtags",
     "pu_abs_hashtags", "pu_abs_interval",

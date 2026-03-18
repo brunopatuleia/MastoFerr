@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Users - Tootkeeper{% endblock %}
+
+{% block content %}
+<h1>Users</h1>
+
+<div class="stats-row" style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">
+    <div class="stat-card" style="flex:1;text-align:center;">
+        <div class="stat-number">{{ counts.current }}</div>
+        <div class="stat-label">Current Followers</div>
+    </div>
+    <div class="stat-card" style="flex:1;text-align:center;">
+        <div class="stat-number" style="color:var(--accent);">+{{ counts.followed }}</div>
+        <div class="stat-label">Total Followed</div>
+    </div>
+    <div class="stat-card" style="flex:1;text-align:center;">
+        <div class="stat-number" style="color:#e06c75;">-{{ counts.unfollowed }}</div>
+        <div class="stat-label">Total Unfollowed</div>
+    </div>
+</div>
+
+{% if events %}
+    {% for event in events %}
+    <div class="card">
+        <div class="card-meta">
+            <span class="date">{{ event.occurred_at[:16] }}</span>
+            <span class="badge badge-{{ event.event_type }}" style="background:{% if event.event_type == 'followed' %}var(--accent){% else %}#e06c75{% endif %};color:#fff;">
+                {% if event.event_type == 'followed' %}&#43; followed{% else %}&minus; unfollowed{% endif %}
+            </span>
+        </div>
+        <div class="card-content">
+            <div class="notif-account">
+                {% if event.avatar %}
+                <img src="{{ event.avatar }}" alt="" class="avatar">
+                {% endif %}
+                <strong>{{ event.display_name or event.acct }}</strong>
+                <span class="acct">@{{ event.acct }}</span>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    {% include "pagination.html" %}
+{% else %}
+    <p class="empty">No follow/unfollow events yet. They'll appear after the next sync detects a change.</p>
+{% endif %}
+{% endblock %}

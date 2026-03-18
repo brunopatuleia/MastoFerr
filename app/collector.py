@@ -2,6 +2,7 @@ import logging
 import os
 import socket
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -291,6 +292,64 @@ def sync_bookmarks(client: Mastodon):
     return len(bmarks)
 
 
+def sync_followers(client: Mastodon):
+    """Sync followers, recording follow/unfollow events."""
+    logger.info("Syncing followers...")
+    me = client.me()
+    account_id = me["id"]
+
+    # Fetch all current followers (paginated)
+    current_followers: dict[str, dict] = {}
+    page = client.account_followers(account_id, limit=80)
+    while page:
+        for acc in page:
+            current_followers[str(acc["id"])] = acc
+        page = client.fetch_next(page) if hasattr(page, "_pagination_next") and page._pagination_next else None
+
+    with get_db() as conn:
+        stored = conn.execute("SELECT account_id, acct FROM followers").fetchall()
+        stored_ids = {row["account_id"] for row in stored}
+        current_ids = set(current_followers.keys())
+        is_first_run = len(stored_ids) == 0
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        # New followers
+        for acc_id in current_ids - stored_ids:
+            acc = current_followers[acc_id]
+            avatar = acc.get("avatar", "")
+            acct = acc.get("acct", "")
+            display_name = acc.get("display_name", "") or acct
+            conn.execute(
+                "INSERT INTO followers (account_id, acct, display_name, avatar, followed_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET "
+                "acct=excluded.acct, display_name=excluded.display_name, avatar=excluded.avatar, updated_at=excluded.updated_at",
+                (acc_id, acct, display_name, avatar, now, now),
+            )
+            if not is_first_run:
+                conn.execute(
+                    "INSERT INTO follower_events (event_type, account_id, acct, display_name, avatar, occurred_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    ("followed", acc_id, acct, display_name, avatar, now),
+                )
+
+        # Unfollowers
+        for acc_id in stored_ids - current_ids:
+            row = conn.execute("SELECT * FROM followers WHERE account_id=?", (acc_id,)).fetchone()
+            if row and not is_first_run:
+                conn.execute(
+                    "INSERT INTO follower_events (event_type, account_id, acct, display_name, avatar, occurred_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    ("unfollowed", acc_id, row["acct"], row["display_name"], row["avatar"], now),
+                )
+            conn.execute("DELETE FROM followers WHERE account_id=?", (acc_id,))
+
+    new_count = len(current_ids - stored_ids) if not is_first_run else 0
+    lost_count = len(stored_ids - current_ids) if not is_first_run else 0
+    logger.info(f"Followers synced. +{new_count} followed, -{lost_count} unfollowed. Total: {len(current_ids)}")
+    return len(current_ids)
+
+
 def run_full_sync():
     """Run a complete sync of all data types."""
     logger.info("Starting full sync...")
@@ -301,6 +360,7 @@ def run_full_sync():
             "notifications": sync_notifications(client),
             "favorites": sync_favorites(client),
             "bookmarks": sync_bookmarks(client),
+            "followers": sync_followers(client),
         }
         logger.info(f"Full sync complete: {counts}")
         return counts

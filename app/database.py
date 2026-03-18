@@ -84,11 +84,31 @@ CREATE TABLE IF NOT EXISTS app_settings (
     value TEXT
 );
 
+CREATE TABLE IF NOT EXISTS followers (
+    account_id TEXT PRIMARY KEY,
+    acct TEXT,
+    display_name TEXT,
+    avatar TEXT,
+    followed_at TEXT,
+    updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS follower_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT,
+    account_id TEXT,
+    acct TEXT,
+    display_name TEXT,
+    avatar TEXT,
+    occurred_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_toots_created ON toots(created_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
 CREATE INDEX IF NOT EXISTS idx_favorites_created ON favorites(created_at);
 CREATE INDEX IF NOT EXISTS idx_bookmarks_created ON bookmarks(created_at);
+CREATE INDEX IF NOT EXISTS idx_follower_events_occurred ON follower_events(occurred_at);
 """
 
 FTS_SCHEMA = """
@@ -505,6 +525,23 @@ def get_topic_counts(conn: sqlite3.Connection, limit: int = 50) -> list[dict]:
         result.append({"name": name, "count": count, "weight": round(weight, 2)})
     result.sort(key=lambda t: t["count"], reverse=True)
     return result
+
+
+def get_follower_events(conn: sqlite3.Connection, page: int = 1, per_page: int = 40) -> tuple[list, int]:
+    offset = (page - 1) * per_page
+    total = conn.execute("SELECT COUNT(*) as c FROM follower_events").fetchone()["c"]
+    rows = conn.execute(
+        "SELECT * FROM follower_events ORDER BY occurred_at DESC LIMIT ? OFFSET ?",
+        (per_page, offset),
+    ).fetchall()
+    return [dict(r) for r in rows], total
+
+
+def get_follower_counts(conn: sqlite3.Connection) -> dict:
+    current = conn.execute("SELECT COUNT(*) as c FROM followers").fetchone()["c"]
+    followed = conn.execute("SELECT COUNT(*) as c FROM follower_events WHERE event_type='followed'").fetchone()["c"]
+    unfollowed = conn.execute("SELECT COUNT(*) as c FROM follower_events WHERE event_type='unfollowed'").fetchone()["c"]
+    return {"current": current, "followed": followed, "unfollowed": unfollowed}
 
 
 def get_hashtag_counts(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:

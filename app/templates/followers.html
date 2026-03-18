@@ -59,6 +59,35 @@ new Chart(document.getElementById('followersChart'), {
 </script>
 {% endif %}
 
+{% if unfollowers %}
+<div class="card" style="margin-bottom:1.5rem;">
+    <h2 style="margin:0 0 1rem 0;">Unfollowers ({{ unfollowers|length }})</h2>
+    <table style="width:100%;border-collapse:collapse;">
+        <thead>
+            <tr style="text-align:left;border-bottom:1px solid var(--border);">
+                <th style="padding:0.5rem 0.75rem;">User</th>
+                <th style="padding:0.5rem 0.75rem;">@handle</th>
+                <th style="padding:0.5rem 0.75rem;">Unfollowed at</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in unfollowers %}
+            <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:0.5rem 0.75rem;">
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        {% if u.avatar %}<img src="{{ u.avatar }}" alt="" class="avatar" style="width:28px;height:28px;">{% endif %}
+                        <span>{{ u.display_name or u.acct }}</span>
+                    </div>
+                </td>
+                <td style="padding:0.5rem 0.75rem;color:var(--muted);">@{{ u.acct }}</td>
+                <td style="padding:0.5rem 0.75rem;color:var(--muted);">{{ u.unfollowed_at[:16] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
 {% if events %}
     {% for event in events %}
     <div class="card">

@@ -528,6 +528,27 @@ async def api_toot_roast(request: Request):
         return JSONResponse({"status": "error", "message": "Failed to post to Mastodon"}, status_code=500)
 
 
+@app.post("/api/roast/rate")
+async def api_rate_roast(request: Request):
+    """Save a like (1) or dislike (-1) rating for the current roast."""
+    auth = _require_auth_api(request)
+    if auth:
+        return auth
+    body = await request.json()
+    rating = body.get("rating")
+    if rating not in (1, -1):
+        return JSONResponse({"status": "error", "message": "rating must be 1 or -1"}, status_code=400)
+    with get_db() as conn:
+        roast = get_setting(conn, "roast_current")
+        if not roast:
+            return JSONResponse({"status": "error", "message": "No active roast"}, status_code=400)
+        conn.execute(
+            "INSERT INTO roast_ratings (roast_text, rating) VALUES (?, ?)",
+            (roast, rating),
+        )
+    return JSONResponse({"status": "ok"})
+
+
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, saved: str = ""):
     redirect = _require_setup(request)

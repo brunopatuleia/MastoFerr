@@ -54,6 +54,20 @@ async function regenerateRoast() {
     }
 }
 
+async function rateRoast(rating) {
+    const likeBtn = document.getElementById('roast-like-btn');
+    const dislikeBtn = document.getElementById('roast-dislike-btn');
+    likeBtn.disabled = true;
+    dislikeBtn.disabled = true;
+    await fetch('/api/roast/rate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating }),
+    });
+    if (rating === 1) likeBtn.textContent = '✅';
+    else dislikeBtn.textContent = '❌';
+}
+
 function tootRoast(instanceUrl) {
     const text = document.getElementById('roast-text').textContent.trim();
     const url = instanceUrl.replace(/\/$/, '') + '/share?text=' + encodeURIComponent(text);

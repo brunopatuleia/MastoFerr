@@ -36,6 +36,8 @@
             <div class="roast-actions">
                 <button class="btn btn-toot-roast" onclick="tootRoast('{{ instance_url }}')" id="toot-roast-btn">Toot This</button>
                 <button class="btn btn-roast" onclick="regenerateRoast()" id="roast-btn">Roast Me Again</button>
+                <button class="btn btn-like" onclick="rateRoast(1)" id="roast-like-btn" title="Good roast">👍</button>
+                <button class="btn btn-dislike" onclick="rateRoast(-1)" id="roast-dislike-btn" title="Bad roast">👎</button>
             </div>
         </div>
         <p class="roast-text" id="roast-text">{{ roast }}</p>

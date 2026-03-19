@@ -109,6 +109,13 @@ CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
 CREATE INDEX IF NOT EXISTS idx_favorites_created ON favorites(created_at);
 CREATE INDEX IF NOT EXISTS idx_bookmarks_created ON bookmarks(created_at);
 CREATE INDEX IF NOT EXISTS idx_follower_events_occurred ON follower_events(occurred_at);
+
+CREATE TABLE IF NOT EXISTS roast_ratings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    roast_text TEXT NOT NULL,
+    rating INTEGER NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 FTS_SCHEMA = """

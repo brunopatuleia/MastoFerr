@@ -248,7 +248,7 @@ def sync_favorites(client: Mastodon):
             kwargs["min_id"] = cursor
         return client.favourites(**kwargs)
 
-    favs, _ = _fetch_all_pages(fetch, client=None, stop_on_id=False)
+    favs, _ = _fetch_all_pages(fetch, client=client, stop_on_id=False)
     if not favs:
         logger.info("No new favorites found.")
         return 0
@@ -276,7 +276,7 @@ def sync_bookmarks(client: Mastodon):
             kwargs["min_id"] = cursor
         return client.bookmarks(**kwargs)
 
-    bmarks, _ = _fetch_all_pages(fetch, client=None, stop_on_id=False)
+    bmarks, _ = _fetch_all_pages(fetch, client=client, stop_on_id=False)
     if not bmarks:
         logger.info("No new bookmarks found.")
         return 0

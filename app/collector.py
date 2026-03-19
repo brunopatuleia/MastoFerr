@@ -362,6 +362,13 @@ def run_full_sync():
             "bookmarks": sync_bookmarks(client),
             "followers": sync_followers(client),
         }
+        # Export new toots to Markdown backup
+        try:
+            from app.markdown_export import export_new_toots
+            with get_db() as conn:
+                counts["markdown"] = export_new_toots(conn)
+        except Exception:
+            logger.exception("Markdown export failed (non-fatal)")
         logger.info(f"Full sync complete: {counts}")
         return counts
     except Exception:

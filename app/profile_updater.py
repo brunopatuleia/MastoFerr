@@ -1163,35 +1163,41 @@ class ProfileUpdater:
                                 starred = navidrome_client.get_starred_songs()
                                 starred_ids = {str(s["id"]) for s in starred}
                                 with get_db() as conn:
-                                    known_raw = get_setting(conn, "pu_nd_starred_ids") or "[]"
-                                    known_ids = set(json.loads(known_raw))
-                                new_ids = starred_ids - known_ids
-                                for song in starred:
-                                    if str(song["id"]) not in new_ids:
-                                        continue
-                                    toot_text = _format_starred_toot(song)
-                                    cover_id = song.get("coverArt") or song.get("albumId")
-                                    media_ids = None
-                                    if cover_id:
-                                        cover_bytes = navidrome_client.get_cover_art_bytes(cover_id)
-                                        if cover_bytes:
-                                            try:
-                                                media = mastodon.media_post(
-                                                    BytesIO(cover_bytes),
-                                                    mime_type="image/jpeg",
-                                                    description=f"{song.get('artist')} - {song.get('title')}",
-                                                )
-                                                media_ids = [media["id"]]
-                                            except MastodonError as e:
-                                                logger.error(f"Failed to upload cover for starred toot: {e}")
-                                    try:
-                                        mastodon.status_post(toot_text, media_ids=media_ids, visibility="public")
-                                        logger.info(f"Posted starred toot: {song.get('artist')} - {song.get('title')}")
-                                    except MastodonError as e:
-                                        logger.error(f"Failed to post starred toot: {e}")
-                                if starred_ids != known_ids:
-                                    with get_db() as conn:
+                                    known_raw = get_setting(conn, "pu_nd_starred_ids")
+                                    if known_raw is None:
+                                        # First run: seed current stars so we only post *new* ones going forward
                                         set_setting(conn, "pu_nd_starred_ids", json.dumps(list(starred_ids)))
+                                        logger.info(f"Navidrome star toot: seeded {len(starred_ids)} known tracks (no toots posted)")
+                                    else:
+                                        known_ids = set(json.loads(known_raw))
+                                        new_ids = starred_ids - known_ids
+                                        if new_ids:
+                                            logger.info(f"Navidrome star toot: {len(new_ids)} new starred track(s)")
+                                        for song in starred:
+                                            if str(song["id"]) not in new_ids:
+                                                continue
+                                            toot_text = _format_starred_toot(song)
+                                            cover_id = song.get("coverArt") or song.get("albumId")
+                                            media_ids = None
+                                            if cover_id:
+                                                cover_bytes = navidrome_client.get_cover_art_bytes(cover_id)
+                                                if cover_bytes:
+                                                    try:
+                                                        media = mastodon.media_post(
+                                                            BytesIO(cover_bytes),
+                                                            mime_type="image/jpeg",
+                                                            description=f"{song.get('artist')} - {song.get('title')}",
+                                                        )
+                                                        media_ids = [media["id"]]
+                                                    except MastodonError as e:
+                                                        logger.error(f"Failed to upload cover for starred toot: {e}")
+                                            try:
+                                                mastodon.status_post(toot_text, media_ids=media_ids, visibility="public")
+                                                logger.info(f"Posted starred toot: {song.get('artist')} - {song.get('title')}")
+                                            except MastodonError as e:
+                                                logger.error(f"Failed to post starred toot: {e}")
+                                        if starred_ids != known_ids:
+                                            set_setting(conn, "pu_nd_starred_ids", json.dumps(list(starred_ids)))
                             except Exception as e:
                                 logger.error(f"Navidrome star toot check failed: {e}")
 

@@ -87,7 +87,7 @@ async function rateRoast(rating) {
 }
 
 function tootRoast(instanceUrl) {
-    const text = document.getElementById('roast-text').textContent.trim() + '\n\nRoasted by TootKeeper';
+    const text = document.getElementById('roast-text').textContent.trim() + '\n\nRoasted by Mastoferr';
     const url = instanceUrl.replace(/\/$/, '') + '/share?text=' + encodeURIComponent(text);
     window.open(url, '_blank');
 }
@@ -104,7 +104,7 @@ async function checkVersion() {
             container.innerHTML = `
                 <div style="margin-top: 10px; padding: 10px; border: 1px solid var(--accent); border-radius: 6px; background: rgba(255,255,255,0.05);">
                     <strong style="color: var(--accent);">Update available: v${data.latest}</strong><br>
-                    <small>You are on v${data.current}. <a href="https://github.com/brunopatuleia/tootkeeper" target="_blank" style="color: inherit; text-decoration: underline;">View on GitHub</a></small>
+                    <small>You are on v${data.current}. <a href="https://github.com/brunopatuleia/mastoferr" target="_blank" style="color: inherit; text-decoration: underline;">View on GitHub</a></small>
                 </div>
             `;
         } else if (data.latest) {

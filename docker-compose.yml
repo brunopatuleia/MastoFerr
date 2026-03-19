@@ -1,7 +1,7 @@
 services:
-  tootkeeper:
+  mastoferr:
     build: .
-    container_name: tootkeeper
+    container_name: mastoferr
     restart: unless-stopped
     ports:
       - "6886:8080"

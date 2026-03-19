@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Tootkeeper{% endblock %}</title>
+    <title>{% block title %}Mastoferr{% endblock %}</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <nav class="navbar">
         <div class="nav-brand">
-            <a href="/">Tootkeeper</a>
+            <a href="/">Mastoferr</a>
         </div>
         <div class="nav-links">
             <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
@@ -33,7 +33,7 @@
     </main>
 
     <footer class="site-footer">
-        <span>Tootkeeper v{{ APP_VERSION }}</span>
+        <span>Mastoferr v{{ APP_VERSION }}</span>
     </footer>
 
     <script src="/static/app.js"></script>

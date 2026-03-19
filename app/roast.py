@@ -1,4 +1,4 @@
-"""AI-powered roast generation for Tootkeeper dashboard."""
+"""AI-powered roast generation for Mastoferr dashboard."""
 
 import json
 import logging

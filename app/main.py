@@ -199,7 +199,7 @@ async def lifespan(app: FastAPI):
         scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="Tootkeeper", lifespan=lifespan)
+app = FastAPI(title="Mastoferr", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 
 # Serve downloaded media files
@@ -349,7 +349,7 @@ async def auth_login(request: Request):
     try:
         # Register the app with the instance
         client_id, client_secret = Mastodon.create_app(
-            "Tootkeeper",
+            "Mastoferr",
             scopes=OAUTH_SCOPES.split(),
             redirect_uris=redirect_uri,
             api_base_url=instance_url,
@@ -595,7 +595,7 @@ async def api_version():
     update_available = False
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/tags?per_page=1"
-        response = requests.get(url, headers={"User-Agent": "Tootkeeper"}, timeout=5)
+        response = requests.get(url, headers={"User-Agent": "Mastoferr"}, timeout=5)
         response.raise_for_status()
         tags = response.json()
         if tags:

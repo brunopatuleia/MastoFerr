@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Settings - Tootkeeper{% endblock %}
+{% block title %}Settings - Mastoferr{% endblock %}
 
 {% set field_order = settings.get('pu_field_order', 'music,movies,books,custom').split(',') %}
 
@@ -415,7 +415,7 @@
         <div id="panel-about" class="settings-panel">
             <h1>About</h1>
             <div class="settings-section">
-                <p class="setup-hint">Tootkeeper archives your Mastodon activity with full-text search.</p>
+                <p class="setup-hint">Mastoferr archives your Mastodon activity with full-text search.</p>
                 <p class="setup-hint" style="margin-top: 0.5rem;">Sync interval: every {{ poll_interval }} minutes</p>
                 <p class="setup-hint" style="margin-top: 0.5rem;">
                     Version: <strong>{{ version }}</strong>

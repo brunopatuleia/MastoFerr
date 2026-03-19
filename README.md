@@ -1,4 +1,4 @@
-# Tootkeeper
+# Mastoferr
 
 A self-hosted Mastodon activity archiver with full-text search. Automatically saves your toots, notifications, favorites, bookmarks, and media attachments to a local SQLite database.
 
@@ -46,11 +46,11 @@ docker --version
 
 **Mac:** Download and install [Docker Desktop for Mac](https://docs.docker.com/desktop/install/mac-install/)
 
-### Step 2: Download Tootkeeper
+### Step 2: Download Mastoferr
 
 ```bash
-git clone https://github.com/brunopatuleia/tootkeeper.git
-cd tootkeeper
+git clone https://github.com/brunopatuleia/mastoferr.git
+cd mastoferr
 ```
 
 ### Step 3: Configure
@@ -64,9 +64,9 @@ Edit `.env` if you need to change the default settings:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `APP_URL` | `http://localhost:6886` | The URL where Tootkeeper is reachable (important for OAuth) |
+| `APP_URL` | `http://localhost:6886` | The URL where Mastoferr is reachable (important for OAuth) |
 | `POLL_INTERVAL` | `5` | How often to check for new activity (in minutes) |
-| `DB_PATH` | `/app/data/tootkeeper.db` | Where the database is stored inside the container |
+| `DB_PATH` | `/app/data/mastoferr.db` | Where the database is stored inside the container |
 | `MEDIA_PATH` | `/app/data/media` | Where downloaded images are stored inside the container |
 | `AI_PROVIDER` | *(disabled)* | AI provider for roast: `anthropic`, `openai`, `gemini`, or `openai-compatible` |
 | `AI_API_KEY` | | Your AI provider API key |
@@ -80,7 +80,7 @@ AI settings can also be configured from the **Settings** page in the web UI.
 
 If you're running on a remote server, set `APP_URL` to the server's address (e.g. `http://your-server-ip:6886`).
 
-### Step 4: Start Tootkeeper
+### Step 4: Start Mastoferr
 
 ```bash
 docker compose up -d
@@ -94,14 +94,14 @@ This builds the container and starts it in the background. First run may take a 
 2. Enter your Mastodon instance domain (e.g. `mastodon.social`, `fosstodon.org`)
 3. Click **Login with Mastodon**
 4. You'll be redirected to your instance to authorize access (read + write:accounts for profile updates)
-5. After authorizing, Tootkeeper starts archiving your full history immediately
+5. After authorizing, Mastoferr starts archiving your full history immediately
 
-That's it! Tootkeeper will continue syncing new activity every 5 minutes.
+That's it! Mastoferr will continue syncing new activity every 5 minutes.
 
 ### Updating
 
 ```bash
-cd tootkeeper
+cd mastoferr
 git pull
 docker compose up --build -d
 ```
@@ -155,7 +155,7 @@ Each source can be individually enabled or disabled with a checkbox in the Setti
 
 ## Audiobookshelf Integration
 
-Connect Tootkeeper to your [Audiobookshelf](https://www.audiobookshelf.org/) server to automatically post a toot with the book cover when you start listening to a new audiobook.
+Connect Mastoferr to your [Audiobookshelf](https://www.audiobookshelf.org/) server to automatically post a toot with the book cover when you start listening to a new audiobook.
 
 **Post format:**
 ```
@@ -172,15 +172,15 @@ Genres are pulled directly from your Audiobookshelf metadata and appended as has
 ### Setup
 
 1. In Audiobookshelf, go to **Settings → API Keys** and create a new key
-2. In Tootkeeper, go to **Settings → Auto Toots → Audiobookshelf**
+2. In Mastoferr, go to **Settings → Auto Toots → Audiobookshelf**
 3. Enter your server URL (e.g. `http://192.168.1.x:13378`) and the API token
-4. Save — Tootkeeper polls every 15 minutes by default and posts once per book
+4. Save — Mastoferr polls every 15 minutes by default and posts once per book
 
 Already-posted book IDs are tracked in the database so you'll never get duplicate toots.
 
 ## Album Listening Posts (Navidrome)
 
-Connect Tootkeeper to your Navidrome server to automatically post a toot with the album cover when you finish listening to an album. "Finished" means ≥65% of the album's tracks were heard in a single session, **in track order** — skipping backwards resets the session.
+Connect Mastoferr to your Navidrome server to automatically post a toot with the album cover when you finish listening to an album. "Finished" means ≥65% of the album's tracks were heard in a single session, **in track order** — skipping backwards resets the session.
 
 **Post format:**
 ```
@@ -209,11 +209,11 @@ Artist - Track Title
 #NowPlaying #Genre
 ```
 
-Enable in **Settings → Auto Toots → Navidrome — Loved Track**. Tootkeeper polls your starred list on each music update cycle and detects new stars within ~60 seconds.
+Enable in **Settings → Auto Toots → Navidrome — Loved Track**. Mastoferr polls your starred list on each music update cycle and detects new stars within ~60 seconds.
 
 ## Follower Tracking
 
-Tootkeeper tracks every follow and unfollow event on your account. The **Users** page shows:
+Mastoferr tracks every follow and unfollow event on your account. The **Users** page shows:
 
 - A line chart of follows and unfollows over time
 - A table of everyone who has unfollowed you, with their avatar, handle, and the date it happened
@@ -236,7 +236,7 @@ Rate each roast with 👍 or 👎. Liked roasts are used as style examples for f
 
 ### Posting
 
-Clicking **Toot This** opens your Mastodon compose window pre-filled with the roast text and `Roasted by TootKeeper` at the bottom. You can edit or delete any part of it before posting.
+Clicking **Toot This** opens your Mastodon compose window pre-filled with the roast text and `Roasted by Mastoferr` at the bottom. You can edit or delete any part of it before posting.
 
 Configure in **Settings → AI Roast**.
 

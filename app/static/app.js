@@ -79,10 +79,10 @@ async function rateRoast(rating) {
     });
     if (rating === 1) {
         likeBtn.textContent = '✅';
-        showToast('Noted! Next roast will aim for this style.');
+        showToast('👍 Feedback saved!');
     } else {
         dislikeBtn.textContent = '❌';
-        showToast('Got it! Next roast will avoid this.');
+        showToast('👎 Feedback saved!');
     }
 }
 

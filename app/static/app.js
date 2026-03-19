@@ -54,6 +54,19 @@ async function regenerateRoast() {
     }
 }
 
+function showToast(message) {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = 'toast show';
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => { toast.className = 'toast'; }, 2500);
+}
+
 async function rateRoast(rating) {
     const likeBtn = document.getElementById('roast-like-btn');
     const dislikeBtn = document.getElementById('roast-dislike-btn');
@@ -64,8 +77,13 @@ async function rateRoast(rating) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rating }),
     });
-    if (rating === 1) likeBtn.textContent = '✅';
-    else dislikeBtn.textContent = '❌';
+    if (rating === 1) {
+        likeBtn.textContent = '✅';
+        showToast('Noted! Next roast will aim for this style.');
+    } else {
+        dislikeBtn.textContent = '❌';
+        showToast('Got it! Next roast will avoid this.');
+    }
 }
 
 function tootRoast(instanceUrl) {

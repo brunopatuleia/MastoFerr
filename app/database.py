@@ -434,7 +434,7 @@ def get_favorites(conn: sqlite3.Connection, page: int = 1, per_page: int = 20) -
     offset = (page - 1) * per_page
     total = conn.execute("SELECT COUNT(*) as c FROM favorites").fetchone()["c"]
     rows = conn.execute(
-        "SELECT * FROM favorites ORDER BY favorited_at DESC LIMIT ? OFFSET ?",
+        "SELECT * FROM favorites ORDER BY created_at DESC LIMIT ? OFFSET ?",
         (per_page, offset),
     ).fetchall()
     return [dict(r) for r in rows], total
@@ -444,7 +444,7 @@ def get_bookmarks(conn: sqlite3.Connection, page: int = 1, per_page: int = 20) -
     offset = (page - 1) * per_page
     total = conn.execute("SELECT COUNT(*) as c FROM bookmarks").fetchone()["c"]
     rows = conn.execute(
-        "SELECT * FROM bookmarks ORDER BY bookmarked_at DESC LIMIT ? OFFSET ?",
+        "SELECT * FROM bookmarks ORDER BY created_at DESC LIMIT ? OFFSET ?",
         (per_page, offset),
     ).fetchall()
     return [dict(r) for r in rows], total

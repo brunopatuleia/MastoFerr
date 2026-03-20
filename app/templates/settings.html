@@ -453,18 +453,41 @@
         <!-- ─── Backup ────────────────────────────────────────────── -->
         <div id="panel-backup" class="settings-panel">
             <h1>Backup</h1>
-            <div class="settings-section">
-                <p class="setup-hint" style="margin-bottom:1.25rem;">Your toots are stored in a SQLite database and also exported to human-readable Markdown files. Download either format to keep an offline copy.</p>
 
-                <h2>SQLite Database</h2>
-                <p class="setup-hint" style="margin-bottom:0.75rem;">Full backup — includes all toots, notifications, favourites, bookmarks, and settings. Open with any SQLite viewer (e.g. <a href="https://sqlitebrowser.org" target="_blank">DB Browser for SQLite</a>).</p>
-                <a href="/backup/db" class="btn btn-sync" style="display:inline-block;">Download .db</a>
+            <div class="settings-section">
+                <h2>Export your data</h2>
+                <p class="setup-hint" style="margin-bottom:1rem;">Choose what to include, then download a JSON file (inside a .zip). Readable on any device.</p>
+                <form method="post" action="/backup/export" class="setup-form">
+                    <label style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;cursor:pointer;">
+                        <input type="checkbox" name="include_toots" value="1" checked>
+                        <span>Your toots <span class="setup-hint">(your own posts, excluding boosts)</span></span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;cursor:pointer;">
+                        <input type="checkbox" name="include_replies" value="1" checked>
+                        <span>Replies <span class="setup-hint">(replies you sent + replies you received)</span></span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;cursor:pointer;">
+                        <input type="checkbox" name="include_favourites" value="1">
+                        <span>Favourites <span class="setup-hint">(toots you liked)</span></span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;cursor:pointer;">
+                        <input type="checkbox" name="include_bookmarks" value="1">
+                        <span>Bookmarks <span class="setup-hint">(toots you bookmarked)</span></span>
+                    </label>
+                    <button type="submit" class="btn btn-sync">Download .zip (JSON)</button>
+                </form>
             </div>
 
             <div class="settings-section" style="margin-top:1.5rem;">
                 <h2>Markdown Archive</h2>
-                <p class="setup-hint" style="margin-bottom:0.75rem;">Plain text — readable on any device, phone, tablet, computer. Organised by year and month. ZIP file contains one <code>.md</code> file per month.</p>
-                <a href="/backup/markdown" class="btn btn-sync" style="display:inline-block;">Download .zip</a>
+                <p class="setup-hint" style="margin-bottom:0.75rem;">Plain text — one <code>.md</code> file per month, readable on any device without special software.</p>
+                <a href="/backup/markdown" class="btn btn-sync" style="display:inline-block;">Download .zip (Markdown)</a>
+            </div>
+
+            <div class="settings-section" style="margin-top:1.5rem;">
+                <h2>Full Database</h2>
+                <p class="setup-hint" style="margin-bottom:0.75rem;">Complete SQLite backup — everything including settings. Open with <a href="https://sqlitebrowser.org" target="_blank">DB Browser for SQLite</a>.</p>
+                <a href="/backup/db" class="btn btn-sync" style="display:inline-block;">Download .db</a>
             </div>
         </div>
 

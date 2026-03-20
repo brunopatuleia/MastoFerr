@@ -884,6 +884,76 @@ async def backup_db(request: Request):
     return FileResponse(str(db_file), media_type="application/octet-stream", filename=filename)
 
 
+@app.post("/backup/export")
+async def backup_export(request: Request):
+    """Download a filtered JSON export based on user-selected data types."""
+    if (auth := _require_auth(request)):
+        return auth
+    import io, json as _json, zipfile
+    form = await request.form()
+    include_toots = "include_toots" in form
+    include_replies = "include_replies" in form
+    include_favourites = "include_favourites" in form
+    include_bookmarks = "include_bookmarks" in form
+
+    if not any([include_toots, include_replies, include_favourites, include_bookmarks]):
+        return RedirectResponse(url="/settings#backup", status_code=302)
+
+    export: dict = {"exported_at": __import__("datetime").datetime.utcnow().isoformat() + "Z"}
+
+    with get_db() as conn:
+        if include_toots:
+            rows = conn.execute(
+                "SELECT id, created_at, url, content_text, visibility, "
+                "in_reply_to_id, reblog_id, reblog_account, "
+                "favourites_count, reblogs_count, replies_count, media_attachments "
+                "FROM toots WHERE reblog_id IS NULL ORDER BY created_at DESC"
+            ).fetchall()
+            export["toots"] = [dict(r) for r in rows]
+
+        if include_replies:
+            # Replies you sent (your toots that are replies to someone)
+            sent = conn.execute(
+                "SELECT id, created_at, url, content_text, in_reply_to_id "
+                "FROM toots WHERE in_reply_to_id IS NOT NULL ORDER BY created_at DESC"
+            ).fetchall()
+            # Replies you received (mentions in notifications)
+            received = conn.execute(
+                "SELECT id, created_at, account_acct, account_display_name, status_content "
+                "FROM notifications WHERE type='mention' ORDER BY created_at DESC"
+            ).fetchall()
+            export["replies_sent"] = [dict(r) for r in sent]
+            export["replies_received"] = [dict(r) for r in received]
+
+        if include_favourites:
+            rows = conn.execute(
+                "SELECT id, created_at, url, content_text, account_acct, account_display_name "
+                "FROM favorites ORDER BY created_at DESC"
+            ).fetchall()
+            export["favourites"] = [dict(r) for r in rows]
+
+        if include_bookmarks:
+            rows = conn.execute(
+                "SELECT id, created_at, url, content_text, account_acct, account_display_name "
+                "FROM bookmarks ORDER BY created_at DESC"
+            ).fetchall()
+            export["bookmarks"] = [dict(r) for r in rows]
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(
+            f"mastoferr_export_{__import__('datetime').date.today().isoformat()}.json",
+            _json.dumps(export, ensure_ascii=False, indent=2),
+        )
+    buf.seek(0)
+    filename = f"mastoferr_export_{__import__('datetime').date.today().isoformat()}.zip"
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.get("/backup/markdown")
 async def backup_markdown(request: Request):
     """Download a ZIP of all markdown toot backups."""

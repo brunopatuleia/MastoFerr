@@ -489,7 +489,7 @@ def is_configured(conn: sqlite3.Connection) -> bool:
 
 
 def get_top_repliers(conn: sqlite3.Connection, limit: int = 25) -> list[dict]:
-    """People who reply to you most (from mention notifications)."""
+    """People who reply to you most (mention notifications, last 7 days)."""
     rows = conn.execute(
         """
         SELECT
@@ -499,6 +499,7 @@ def get_top_repliers(conn: sqlite3.Connection, limit: int = 25) -> list[dict]:
             COUNT(*)                         AS reply_count
         FROM notifications
         WHERE type = 'mention'
+          AND created_at >= datetime('now', '-7 days')
         GROUP BY account_acct
         ORDER BY reply_count DESC
         LIMIT ?
@@ -509,7 +510,7 @@ def get_top_repliers(conn: sqlite3.Connection, limit: int = 25) -> list[dict]:
 
 
 def get_top_replied_to(conn: sqlite3.Connection, limit: int = 25) -> list[dict]:
-    """People you reply to most (from your own reply toots)."""
+    """People you reply to most (your own reply toots, last 7 days)."""
     rows = conn.execute(
         """
         SELECT
@@ -527,6 +528,7 @@ def get_top_replied_to(conn: sqlite3.Connection, limit: int = 25) -> list[dict]:
         ) n ON lower(json_extract(t.raw_json, '$.mentions[0].acct')) = lower(n.account_acct)
         WHERE t.in_reply_to_id IS NOT NULL
           AND json_extract(t.raw_json, '$.mentions[0].acct') IS NOT NULL
+          AND t.created_at >= datetime('now', '-7 days')
         GROUP BY lower(json_extract(t.raw_json, '$.mentions[0].acct'))
         ORDER BY reply_count DESC
         LIMIT ?

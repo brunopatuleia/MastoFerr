@@ -37,17 +37,15 @@
 {% endmacro %}
 
 {% block content %}
-<div style="display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem;">
+<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;">
     <h1 style="margin:0;">{{ tab_name }}</h1>
-    <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">
+    <select onchange="location.href='?period='+this.value"
+            style="background:var(--card-bg);color:var(--text);border:1px solid var(--border);
+                   border-radius:6px;padding:0.3rem 0.6rem;font-size:0.9rem;cursor:pointer;">
         {% for key, label in period_labels.items() %}
-        <a href="?period={{ key }}"
-           style="padding:0.2rem 0.65rem;border-radius:999px;font-size:0.8rem;text-decoration:none;
-                  {% if period == key %}background:var(--accent);color:#fff;{% else %}background:var(--card-bg);color:var(--muted);border:1px solid var(--border);{% endif %}">
-            {{ label }}
-        </a>
+        <option value="{{ key }}" {% if period == key %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
-    </div>
+    </select>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">

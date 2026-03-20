@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ tab_name }} - Mastoferr{% endblock %}
+
+{% block content %}
+<h1>{{ tab_name }}</h1>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1.5rem;">
+
+    <!-- Who replies to you -->
+    <div class="card">
+        <h2 style="margin:0 0 1rem 0;">They reply to you</h2>
+        {% if repliers %}
+        <table style="width:100%;border-collapse:collapse;">
+            <thead>
+                <tr style="text-align:left;border-bottom:1px solid var(--border);">
+                    <th style="padding:0.4rem 0.5rem;">#</th>
+                    <th style="padding:0.4rem 0.5rem;">User</th>
+                    <th style="padding:0.4rem 0.5rem;text-align:right;">Replies</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in repliers %}
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:0.4rem 0.5rem;color:var(--muted);font-size:0.85rem;">{{ loop.index }}</td>
+                    <td style="padding:0.4rem 0.5rem;">
+                        <div style="display:flex;align-items:center;gap:0.5rem;">
+                            {% if u.avatar %}
+                            <img src="{{ u.avatar }}" alt="" class="avatar" style="width:26px;height:26px;flex-shrink:0;">
+                            {% endif %}
+                            <div>
+                                <div style="font-weight:500;">{{ u.display_name or u.acct }}</div>
+                                <div style="font-size:0.8rem;color:var(--muted);">@{{ u.acct }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="padding:0.4rem 0.5rem;text-align:right;font-weight:600;color:var(--accent);">{{ u.reply_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty">No mention notifications yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Who you reply to -->
+    <div class="card">
+        <h2 style="margin:0 0 1rem 0;">You reply to them</h2>
+        {% if replied_to %}
+        <table style="width:100%;border-collapse:collapse;">
+            <thead>
+                <tr style="text-align:left;border-bottom:1px solid var(--border);">
+                    <th style="padding:0.4rem 0.5rem;">#</th>
+                    <th style="padding:0.4rem 0.5rem;">User</th>
+                    <th style="padding:0.4rem 0.5rem;text-align:right;">Replies</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in replied_to %}
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:0.4rem 0.5rem;color:var(--muted);font-size:0.85rem;">{{ loop.index }}</td>
+                    <td style="padding:0.4rem 0.5rem;">
+                        <div style="display:flex;align-items:center;gap:0.5rem;">
+                            {% if u.avatar %}
+                            <img src="{{ u.avatar }}" alt="" class="avatar" style="width:26px;height:26px;flex-shrink:0;">
+                            {% endif %}
+                            <div>
+                                <div style="font-weight:500;">{{ u.display_name or u.acct }}</div>
+                                <div style="font-size:0.8rem;color:var(--muted);">@{{ u.acct }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="padding:0.4rem 0.5rem;text-align:right;font-weight:600;color:var(--accent);">{{ u.reply_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty">No reply toots found yet.</p>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

@@ -36,6 +36,8 @@ from app.database import (
     get_toot_detail,
     get_toots,
     get_topic_counts,
+    get_top_repliers,
+    get_top_replied_to,
     init_db,
     is_configured,
     set_setting,
@@ -248,6 +250,17 @@ def _media_preview_url(attachment: dict) -> str | None:
 templates.env.globals["media_url"] = _media_url
 templates.env.globals["media_preview_url"] = _media_preview_url
 templates.env.globals["APP_VERSION"] = VERSION
+
+
+def _get_app_settings() -> dict:
+    try:
+        with get_db() as conn:
+            return {"interactions_tab_name": get_setting(conn, "interactions_tab_name") or ""}
+    except Exception:
+        return {}
+
+
+templates.env.globals["app_settings"] = _get_app_settings
 
 import json as _json
 templates.env.filters["fromjson"] = lambda s: _json.loads(s) if isinstance(s, str) else s
@@ -774,6 +787,33 @@ async def followers_page(request: Request, page: int = Query(1, ge=1)):
         "unfollowers": unfollowers,
         "pagination": pagination,
     })
+
+
+@app.get("/interactions", response_class=HTMLResponse)
+async def interactions_page(request: Request):
+    redirect = _require_setup(request)
+    if redirect:
+        return redirect
+    with get_db() as conn:
+        repliers = get_top_repliers(conn)
+        replied_to = get_top_replied_to(conn)
+        tab_name = get_setting(conn, "interactions_tab_name") or "Friends or Stalkers"
+    return templates.TemplateResponse("interactions.html", {
+        "request": request,
+        "repliers": repliers,
+        "replied_to": replied_to,
+        "tab_name": tab_name,
+    })
+
+
+@app.post("/settings/app")
+async def settings_app(request: Request):
+    if (auth := _require_auth(request)):
+        return auth
+    form = await request.form()
+    with get_db() as conn:
+        set_setting(conn, "interactions_tab_name", str(form.get("interactions_tab_name", "")).strip())
+    return RedirectResponse(url="/settings?saved=1#app", status_code=302)
 
 
 @app.get("/toot/{toot_id}", response_class=HTMLResponse)

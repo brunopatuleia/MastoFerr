@@ -20,6 +20,7 @@
             <a href="/bookmarks" class="{% if request.url.path == '/bookmarks' %}active{% endif %}">Bookmarks</a>
             <span class="nav-sep"></span>
             <a href="/followers" class="{% if request.url.path == '/followers' %}active{% endif %}">Users</a>
+            <a href="/interactions" class="{% if request.url.path == '/interactions' %}active{% endif %}">{{ app_settings().get('interactions_tab_name') or 'Friends or Stalkers' }}</a>
             <a href="/hashtags" class="{% if request.url.path == '/hashtags' %}active{% endif %}">Hashtags</a>
             <a href="/topics" class="{% if request.url.path == '/topics' %}active{% endif %}">Topics</a>
         </div>

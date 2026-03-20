@@ -488,6 +488,54 @@ def is_configured(conn: sqlite3.Connection) -> bool:
     return bool(token and instance)
 
 
+def get_top_repliers(conn: sqlite3.Connection, limit: int = 25) -> list[dict]:
+    """People who reply to you most (from mention notifications)."""
+    rows = conn.execute(
+        """
+        SELECT
+            account_acct                     AS acct,
+            MAX(account_display_name)        AS display_name,
+            MAX(account_avatar)              AS avatar,
+            COUNT(*)                         AS reply_count
+        FROM notifications
+        WHERE type = 'mention'
+        GROUP BY account_acct
+        ORDER BY reply_count DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_top_replied_to(conn: sqlite3.Connection, limit: int = 25) -> list[dict]:
+    """People you reply to most (from your own reply toots)."""
+    rows = conn.execute(
+        """
+        SELECT
+            json_extract(t.raw_json, '$.mentions[0].acct')          AS acct,
+            COUNT(*)                                                  AS reply_count,
+            MAX(n.account_display_name)                              AS display_name,
+            MAX(n.account_avatar)                                    AS avatar
+        FROM toots t
+        LEFT JOIN (
+            SELECT account_id,
+                   MAX(account_display_name) AS account_display_name,
+                   MAX(account_avatar)       AS account_avatar
+            FROM notifications
+            GROUP BY account_id
+        ) n ON t.in_reply_to_account_id = n.account_id
+        WHERE t.in_reply_to_id IS NOT NULL
+          AND json_extract(t.raw_json, '$.mentions[0].acct') IS NOT NULL
+        GROUP BY acct
+        ORDER BY reply_count DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_topic_counts(conn: sqlite3.Connection, limit: int = 50) -> list[dict]:
     """Extract common topics/words from toot content, excluding stopwords and short words."""
     from collections import Counter

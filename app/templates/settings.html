@@ -21,6 +21,7 @@
         <a href="#toots-updater" data-panel="toots-updater">Auto Toots</a>
 
         <span class="sidebar-heading">App</span>
+        <a href="#app" data-panel="app">Display</a>
         <a href="#about" data-panel="about">About</a>
         <a href="/logout">Logout</a>
     </nav>
@@ -425,6 +426,24 @@
         </div>
 
         <!-- ─── About ───────────────────────────────────────────── -->
+        <!-- ─── Display ─────────────────────────────────────────── -->
+        <div id="panel-app" class="settings-panel">
+            <h1>Display</h1>
+            <form method="post" action="/settings/app">
+                <div class="settings-section">
+                    <h2>Interactions Tab</h2>
+                    <label for="interactions_tab_name">Tab name</label>
+                    <input type="text" id="interactions_tab_name" name="interactions_tab_name"
+                           placeholder="Friends or Stalkers"
+                           value="{{ settings.get('interactions_tab_name', '') }}">
+                    <p class="setup-hint" style="margin-top:0.25rem;">Name shown in the navbar for the reply interactions page. Leave blank for default.</p>
+                </div>
+                <div class="settings-actions" style="margin-top:1rem;">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+
         <div id="panel-about" class="settings-panel">
             <h1>About</h1>
             <div class="settings-section">

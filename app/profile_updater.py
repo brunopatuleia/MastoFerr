@@ -538,6 +538,22 @@ class AudiobookshelfClient:
             logger.error(f"Audiobookshelf cover download failed ({library_item_id}): {e}")
             return None
 
+    def get_user_progress(self, library_item_id: str) -> dict | None:
+        """Fetch user progress for a library item (includes isFinished)."""
+        try:
+            resp = requests.get(
+                f"{self.server_url}/api/me/progress/{library_item_id}",
+                headers=self._headers,
+                timeout=10,
+            )
+            if resp.status_code == 404:
+                return None
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.error(f"Audiobookshelf progress check failed ({library_item_id}): {e}")
+            return None
+
 
 class SpotifyClient:
     TOKEN_URL = "https://accounts.spotify.com/api/token"
@@ -788,6 +804,31 @@ def _format_abs_toot(book: dict, settings: dict) -> str:
     return "\n".join(parts)
 
 
+def _format_abs_finished_toot(book: dict, settings: dict) -> str:
+    """Format a toot for a finished Audiobookshelf audiobook."""
+    title = book.get("title", "Unknown")
+    author = book.get("author", "")
+    year = book.get("year", "")
+    genres = book.get("genres", [])
+
+    title_line = f"{title} [{year}]" if year else title
+
+    genre_tags = " ".join(
+        "#" + "".join(w.capitalize() for w in g.split())
+        for g in genres[:5]
+    )
+
+    base_tags = settings.get("pu_abs_finished_hashtags", "").strip() or "#FinishedReading #Audiobooks #Books"
+    hashtags = f"{base_tags} {genre_tags}".strip() if genre_tags else base_tags
+
+    parts = [f"Just finished: {title_line}"]
+    if author:
+        parts.append(author)
+    parts.append("")
+    parts.append(hashtags)
+    return "\n".join(parts)
+
+
 # ── Profile Updater ──────────────────────────────────────────────
 
 # Default settings
@@ -802,6 +843,7 @@ DEFAULTS = {
     "pu_offline_message": "Nothing playing",
     "pu_abs_interval": "900",
     "pu_abs_hashtags": "#NowReading #Audiobooks #Books",
+    "pu_abs_finished_hashtags": "#FinishedReading #Audiobooks #Books",
     "pu_album_hashtags": "#NowPlaying",
     "pu_weekly_artists_day": "0",
     "pu_weekly_artists_hour": "0",
@@ -1272,13 +1314,23 @@ class ProfileUpdater:
                                     except MastodonError as e:
                                         logger.error(f"Failed to post weekly artists toot: {e}")
 
-                    # Audiobookshelf — toot when a new book is started
+                    # Audiobookshelf — toot when a new book is started or finished
                     if audiobookshelf and now - self.last_abs_update >= abs_interval:
                         in_progress = audiobookshelf.get_in_progress_books()
                         with get_db() as conn:
                             raw = get_setting(conn, "pu_abs_tooted_ids")
+                            raw_prev = get_setting(conn, "pu_abs_prev_in_progress_ids")
+                            raw_finished = get_setting(conn, "pu_abs_finished_tooted_ids")
                         tooted_ids: set[str] = set(json.loads(raw)) if raw else set()
+                        prev_ids: set[str] = set(json.loads(raw_prev)) if raw_prev else set()
+                        finished_tooted: set[str] = set(json.loads(raw_finished)) if raw_finished else set()
+                        current_ids = {
+                            item["libraryItemId"]
+                            for item in in_progress
+                            if item.get("libraryItemId")
+                        }
 
+                        # New books started
                         for item in in_progress:
                             item_id = item.get("libraryItemId")
                             if not item_id or item_id in tooted_ids:
@@ -1288,7 +1340,6 @@ class ProfileUpdater:
                                 tooted_ids.add(item_id)  # skip broken items
                                 continue
                             toot_text = _format_abs_toot(book, settings)
-                            # Try to attach cover image
                             media_ids = None
                             cover_bytes = audiobookshelf.get_cover_bytes(item_id)
                             if cover_bytes:
@@ -1303,15 +1354,47 @@ class ProfileUpdater:
                                     logger.error(f"Failed to upload ABS cover ({book['title']}): {e}")
                             try:
                                 mastodon.status_post(toot_text, media_ids=media_ids, visibility="public")
-                                logger.info(f"Posted ABS toot: {book['title']}")
+                                logger.info(f"Posted ABS started toot: {book['title']}")
                             except MastodonError as e:
                                 logger.error(f"Failed to post ABS toot ({book['title']}): {e}")
                             tooted_ids.add(item_id)
 
-                        # Persist updated set (cap at 500 to avoid unbounded growth)
-                        updated = list(tooted_ids)[-500:]
+                        # Books that just left in-progress — check if finished
+                        if settings.get("pu_abs_finished_enabled") == "1" and prev_ids:
+                            for item_id in prev_ids - current_ids:
+                                if item_id in finished_tooted:
+                                    continue
+                                progress = audiobookshelf.get_user_progress(item_id)
+                                if not progress or not progress.get("isFinished"):
+                                    continue
+                                book = audiobookshelf.get_book_metadata(item_id)
+                                finished_tooted.add(item_id)
+                                if not book:
+                                    continue
+                                toot_text = _format_abs_finished_toot(book, settings)
+                                media_ids = None
+                                cover_bytes = audiobookshelf.get_cover_bytes(item_id)
+                                if cover_bytes:
+                                    try:
+                                        media = mastodon.media_post(
+                                            BytesIO(cover_bytes),
+                                            mime_type="image/jpeg",
+                                            description=f"Cover of {book['title']}",
+                                        )
+                                        media_ids = [media["id"]]
+                                    except MastodonError as e:
+                                        logger.error(f"Failed to upload ABS cover ({book['title']}): {e}")
+                                try:
+                                    mastodon.status_post(toot_text, media_ids=media_ids, visibility="public")
+                                    logger.info(f"Posted ABS finished toot: {book['title']}")
+                                except MastodonError as e:
+                                    logger.error(f"Failed to post ABS finished toot ({book['title']}): {e}")
+
+                        # Persist updated sets (cap at 500 to avoid unbounded growth)
                         with get_db() as conn:
-                            set_setting(conn, "pu_abs_tooted_ids", json.dumps(updated))
+                            set_setting(conn, "pu_abs_tooted_ids", json.dumps(list(tooted_ids)[-500:]))
+                            set_setting(conn, "pu_abs_prev_in_progress_ids", json.dumps(list(current_ids)))
+                            set_setting(conn, "pu_abs_finished_tooted_ids", json.dumps(list(finished_tooted)[-500:]))
                         self.last_abs_update = now
 
                     # Push all managed fields in one API call when anything changes

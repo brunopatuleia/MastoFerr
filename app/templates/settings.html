@@ -361,6 +361,19 @@
 
                 <div class="settings-section" style="margin-top: 1.5rem;">
                     <label class="pu-section-toggle">
+                        <input type="checkbox" name="pu_abs_finished_enabled" value="1" {{ 'checked' if settings.get('pu_abs_finished_enabled', '0') == '1' }} onchange="toggleSection('abs-finished-fields', this.checked)">
+                        <h2>Audiobookshelf — Finished Audiobook</h2>
+                    </label>
+                    <p class="setup-hint" style="margin: 0.4rem 0 0.75rem 0;">Posts when you finish an audiobook. Posts once per book.</p>
+                    <div id="abs-finished-fields" style="{{ '' if settings.get('pu_abs_finished_enabled', '0') == '1' else 'display:none;' }}">
+                        <label for="pu_abs_finished_hashtags">Hashtags</label>
+                        <input type="text" id="pu_abs_finished_hashtags" name="pu_abs_finished_hashtags" placeholder="#FinishedReading #Audiobooks #Books" value="{{ settings.get('pu_abs_finished_hashtags', '') }}">
+                        <p class="setup-hint" style="margin-top: 0.25rem;">Genres from Audiobookshelf are appended automatically. Leave blank for defaults.</p>
+                    </div>
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <label class="pu-section-toggle">
                         <input type="checkbox" name="pu_weekly_artists_enabled" value="1" {{ 'checked' if settings.get('pu_weekly_artists_enabled', '0') == '1' }} onchange="toggleSection('weekly-fields', this.checked)">
                         <h2>Weekly Top Artists</h2>
                     </label>

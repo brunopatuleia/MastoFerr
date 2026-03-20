@@ -858,13 +858,14 @@ AUTO_TOOTS_SETTINGS_KEYS = [
     "pu_books_hashtags",
     "pu_album_hashtags",
     "pu_abs_hashtags", "pu_abs_interval",
+    "pu_abs_finished_hashtags",
 ]
 
 AUTO_TOOTS_CHECKBOX_KEYS = [
     "pu_weekly_artists_enabled",
     "pu_books_post_start", "pu_books_post_finish",
     "pu_album_enabled",
-    "pu_abs_enabled",
+    "pu_abs_enabled", "pu_abs_finished_enabled",
     "pu_nd_star_toot_enabled",
 ]
 

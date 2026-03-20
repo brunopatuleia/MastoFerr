@@ -1,83 +1,74 @@
 {% extends "base.html" %}
 {% block title %}{{ tab_name }} - Mastoferr{% endblock %}
 
+{% macro interaction_table(rows, empty_msg, count_field) %}
+{% if rows %}
+<table style="width:100%;border-collapse:collapse;">
+    <thead>
+        <tr style="text-align:left;border-bottom:1px solid var(--border);">
+            <th style="padding:0.4rem 0.5rem;">#</th>
+            <th style="padding:0.4rem 0.5rem;">User</th>
+            <th style="padding:0.4rem 0.5rem;text-align:right;">Count</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for u in rows %}
+        <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:0.4rem 0.5rem;color:var(--muted);font-size:0.85rem;">{{ loop.index }}</td>
+            <td style="padding:0.4rem 0.5rem;">
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                    {% if u.avatar %}
+                    <img src="{{ u.avatar }}" alt="" class="avatar" style="width:26px;height:26px;flex-shrink:0;">
+                    {% endif %}
+                    <div>
+                        <div style="font-weight:500;">{{ u.display_name or u.acct }}</div>
+                        <div style="font-size:0.8rem;color:var(--muted);">@{{ u.acct }}</div>
+                    </div>
+                </div>
+            </td>
+            <td style="padding:0.4rem 0.5rem;text-align:right;font-weight:600;color:var(--accent);">{{ u[count_field] }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty">{{ empty_msg }}</p>
+{% endif %}
+{% endmacro %}
+
 {% block content %}
 <h1>{{ tab_name }} <span class="count">last {{ days }} days</span></h1>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1.5rem;">
 
-    <!-- Who replies to you -->
+    <!-- Replies -->
     <div class="card">
-        <h2 style="margin:0 0 1rem 0;">They reply to you</h2>
-        {% if repliers %}
-        <table style="width:100%;border-collapse:collapse;">
-            <thead>
-                <tr style="text-align:left;border-bottom:1px solid var(--border);">
-                    <th style="padding:0.4rem 0.5rem;">#</th>
-                    <th style="padding:0.4rem 0.5rem;">User</th>
-                    <th style="padding:0.4rem 0.5rem;text-align:right;">Replies</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for u in repliers %}
-                <tr style="border-bottom:1px solid var(--border);">
-                    <td style="padding:0.4rem 0.5rem;color:var(--muted);font-size:0.85rem;">{{ loop.index }}</td>
-                    <td style="padding:0.4rem 0.5rem;">
-                        <div style="display:flex;align-items:center;gap:0.5rem;">
-                            {% if u.avatar %}
-                            <img src="{{ u.avatar }}" alt="" class="avatar" style="width:26px;height:26px;flex-shrink:0;">
-                            {% endif %}
-                            <div>
-                                <div style="font-weight:500;">{{ u.display_name or u.acct }}</div>
-                                <div style="font-size:0.8rem;color:var(--muted);">@{{ u.acct }}</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td style="padding:0.4rem 0.5rem;text-align:right;font-weight:600;color:var(--accent);">{{ u.reply_count }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p class="empty">No mention notifications yet.</p>
-        {% endif %}
+        <h2 style="margin:0 0 1rem 0;">💬 They reply to you</h2>
+        {{ interaction_table(repliers, "No mention notifications yet.", "reply_count") }}
+    </div>
+    <div class="card">
+        <h2 style="margin:0 0 1rem 0;">💬 You reply to them</h2>
+        {{ interaction_table(replied_to, "No reply toots found yet.", "reply_count") }}
     </div>
 
-    <!-- Who you reply to -->
+    <!-- Likes -->
     <div class="card">
-        <h2 style="margin:0 0 1rem 0;">You reply to them</h2>
-        {% if replied_to %}
-        <table style="width:100%;border-collapse:collapse;">
-            <thead>
-                <tr style="text-align:left;border-bottom:1px solid var(--border);">
-                    <th style="padding:0.4rem 0.5rem;">#</th>
-                    <th style="padding:0.4rem 0.5rem;">User</th>
-                    <th style="padding:0.4rem 0.5rem;text-align:right;">Replies</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for u in replied_to %}
-                <tr style="border-bottom:1px solid var(--border);">
-                    <td style="padding:0.4rem 0.5rem;color:var(--muted);font-size:0.85rem;">{{ loop.index }}</td>
-                    <td style="padding:0.4rem 0.5rem;">
-                        <div style="display:flex;align-items:center;gap:0.5rem;">
-                            {% if u.avatar %}
-                            <img src="{{ u.avatar }}" alt="" class="avatar" style="width:26px;height:26px;flex-shrink:0;">
-                            {% endif %}
-                            <div>
-                                <div style="font-weight:500;">{{ u.display_name or u.acct }}</div>
-                                <div style="font-size:0.8rem;color:var(--muted);">@{{ u.acct }}</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td style="padding:0.4rem 0.5rem;text-align:right;font-weight:600;color:var(--accent);">{{ u.reply_count }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p class="empty">No reply toots found yet.</p>
-        {% endif %}
+        <h2 style="margin:0 0 1rem 0;">⭐ They like you</h2>
+        {{ interaction_table(likers, "No favourite notifications yet.", "count") }}
+    </div>
+    <div class="card">
+        <h2 style="margin:0 0 1rem 0;">⭐ You like them</h2>
+        {{ interaction_table(liked_by_me, "No favourites found yet.", "count") }}
+    </div>
+
+    <!-- Boosts -->
+    <div class="card">
+        <h2 style="margin:0 0 1rem 0;">🔁 They boost you</h2>
+        {{ interaction_table(boosters, "No boost notifications yet.", "count") }}
+    </div>
+    <div class="card">
+        <h2 style="margin:0 0 1rem 0;">🔁 You boost them</h2>
+        {{ interaction_table(boosted_by_me, "No boosts found yet.", "count") }}
     </div>
 
 </div>

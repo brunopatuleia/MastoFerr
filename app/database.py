@@ -538,6 +538,97 @@ def get_top_replied_to(conn: sqlite3.Connection, limit: int = 25, days: int = 15
     return [dict(r) for r in rows]
 
 
+def get_top_likers(conn: sqlite3.Connection, limit: int = 25, days: int = 15) -> list[dict]:
+    """People who liked your toots most (favourite notifications)."""
+    rows = conn.execute(
+        """
+        SELECT
+            account_acct                     AS acct,
+            MAX(account_display_name)        AS display_name,
+            MAX(account_avatar)              AS avatar,
+            COUNT(*)                         AS count
+        FROM notifications
+        WHERE type = 'favourite'
+          AND created_at >= datetime('now', ? || ' days')
+        GROUP BY account_acct
+        ORDER BY count DESC
+        LIMIT ?
+        """,
+        (f"-{days}", limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_top_liked_by_me(conn: sqlite3.Connection, limit: int = 25, days: int = 15) -> list[dict]:
+    """People whose toots you liked most (your favourites)."""
+    rows = conn.execute(
+        """
+        SELECT
+            account_acct                     AS acct,
+            MAX(account_display_name)        AS display_name,
+            MAX(account_avatar)              AS avatar,
+            COUNT(*)                         AS count
+        FROM favorites
+        WHERE favorited_at >= datetime('now', ? || ' days')
+        GROUP BY account_acct
+        ORDER BY count DESC
+        LIMIT ?
+        """,
+        (f"-{days}", limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_top_boosters(conn: sqlite3.Connection, limit: int = 25, days: int = 15) -> list[dict]:
+    """People who boosted your toots most (reblog notifications)."""
+    rows = conn.execute(
+        """
+        SELECT
+            account_acct                     AS acct,
+            MAX(account_display_name)        AS display_name,
+            MAX(account_avatar)              AS avatar,
+            COUNT(*)                         AS count
+        FROM notifications
+        WHERE type = 'reblog'
+          AND created_at >= datetime('now', ? || ' days')
+        GROUP BY account_acct
+        ORDER BY count DESC
+        LIMIT ?
+        """,
+        (f"-{days}", limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_top_boosted_by_me(conn: sqlite3.Connection, limit: int = 25, days: int = 15) -> list[dict]:
+    """People whose toots you boosted most (your reblogs)."""
+    rows = conn.execute(
+        """
+        SELECT
+            t.reblog_account                              AS acct,
+            COUNT(*)                                      AS count,
+            MAX(n.account_display_name)                  AS display_name,
+            MAX(n.account_avatar)                        AS avatar
+        FROM toots t
+        LEFT JOIN (
+            SELECT account_acct,
+                   MAX(account_display_name) AS account_display_name,
+                   MAX(account_avatar)       AS account_avatar
+            FROM notifications
+            GROUP BY account_acct
+        ) n ON lower(t.reblog_account) = lower(n.account_acct)
+        WHERE t.reblog_id IS NOT NULL
+          AND t.reblog_account IS NOT NULL
+          AND t.created_at >= datetime('now', ? || ' days')
+        GROUP BY lower(t.reblog_account)
+        ORDER BY count DESC
+        LIMIT ?
+        """,
+        (f"-{days}", limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_topic_counts(conn: sqlite3.Connection, limit: int = 50) -> list[dict]:
     """Extract common topics/words from toot content, excluding stopwords and short words."""
     from collections import Counter

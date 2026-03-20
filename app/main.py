@@ -38,6 +38,10 @@ from app.database import (
     get_topic_counts,
     get_top_repliers,
     get_top_replied_to,
+    get_top_likers,
+    get_top_liked_by_me,
+    get_top_boosters,
+    get_top_boosted_by_me,
     init_db,
     is_configured,
     set_setting,
@@ -798,11 +802,19 @@ async def interactions_page(request: Request):
         days = max(1, int(get_setting(conn, "interactions_days") or 15))
         repliers = get_top_repliers(conn, days=days)
         replied_to = get_top_replied_to(conn, days=days)
+        likers = get_top_likers(conn, days=days)
+        liked_by_me = get_top_liked_by_me(conn, days=days)
+        boosters = get_top_boosters(conn, days=days)
+        boosted_by_me = get_top_boosted_by_me(conn, days=days)
         tab_name = get_setting(conn, "interactions_tab_name") or "Friends or Stalkers"
     return templates.TemplateResponse("interactions.html", {
         "request": request,
         "repliers": repliers,
         "replied_to": replied_to,
+        "likers": likers,
+        "liked_by_me": liked_by_me,
+        "boosters": boosters,
+        "boosted_by_me": boosted_by_me,
         "tab_name": tab_name,
         "days": days,
     })

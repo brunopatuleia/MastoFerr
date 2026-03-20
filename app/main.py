@@ -793,17 +793,29 @@ async def followers_page(request: Request, page: int = Query(1, ge=1)):
     })
 
 
+_PERIOD_DAYS: dict[str, int | None] = {
+    "1d": 1, "7d": 7, "15d": 15, "1m": 30, "3m": 90, "1y": 365, "all": None,
+}
+_PERIOD_LABELS: dict[str, str] = {
+    "1d": "1 day", "7d": "7 days", "15d": "15 days",
+    "1m": "1 month", "3m": "3 months", "1y": "1 year", "all": "All time",
+}
+
+
 @app.get("/interactions", response_class=HTMLResponse)
-async def interactions_page(request: Request):
+async def interactions_page(request: Request, period: str = "15d"):
     redirect = _require_setup(request)
     if redirect:
         return redirect
+    if period not in _PERIOD_DAYS:
+        period = "15d"
+    days = _PERIOD_DAYS[period]
     with get_db() as conn:
-        days = max(1, int(get_setting(conn, "interactions_days") or 15))
+        own_acct = get_setting(conn, "account_acct") or ""
         repliers = get_top_repliers(conn, days=days)
         replied_to = get_top_replied_to(conn, days=days)
         likers = get_top_likers(conn, days=days)
-        liked_by_me = get_top_liked_by_me(conn, days=days)
+        liked_by_me = get_top_liked_by_me(conn, days=days, own_acct=own_acct)
         boosters = get_top_boosters(conn, days=days)
         boosted_by_me = get_top_boosted_by_me(conn, days=days)
         tab_name = get_setting(conn, "interactions_tab_name") or "Friends or Stalkers"
@@ -816,7 +828,8 @@ async def interactions_page(request: Request):
         "boosters": boosters,
         "boosted_by_me": boosted_by_me,
         "tab_name": tab_name,
-        "days": days,
+        "period": period,
+        "period_labels": _PERIOD_LABELS,
     })
 
 

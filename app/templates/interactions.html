@@ -37,9 +37,20 @@
 {% endmacro %}
 
 {% block content %}
-<h1>{{ tab_name }} <span class="count">last {{ days }} days</span></h1>
+<div style="display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem;">
+    <h1 style="margin:0;">{{ tab_name }}</h1>
+    <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">
+        {% for key, label in period_labels.items() %}
+        <a href="?period={{ key }}"
+           style="padding:0.2rem 0.65rem;border-radius:999px;font-size:0.8rem;text-decoration:none;
+                  {% if period == key %}background:var(--accent);color:#fff;{% else %}background:var(--card-bg);color:var(--muted);border:1px solid var(--border);{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1.5rem;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
 
     <!-- Replies -->
     <div class="card">

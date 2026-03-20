@@ -488,10 +488,18 @@ def is_configured(conn: sqlite3.Connection) -> bool:
     return bool(token and instance)
 
 
-def get_top_repliers(conn: sqlite3.Connection, limit: int = 25, days: int = 15) -> list[dict]:
+def _date_filter(col: str, days: int | None) -> tuple[str, list]:
+    """Return (SQL fragment, params) for an optional date window on `col`."""
+    if days is None:
+        return "", []
+    return f"AND {col} >= datetime('now', ? || ' days')", [f"-{days}"]
+
+
+def get_top_repliers(conn: sqlite3.Connection, limit: int = 25, days: int | None = 15) -> list[dict]:
     """People who reply to you most (mention notifications, configurable window)."""
+    date_sql, date_params = _date_filter("created_at", days)
     rows = conn.execute(
-        """
+        f"""
         SELECT
             account_acct                     AS acct,
             MAX(account_display_name)        AS display_name,
@@ -499,20 +507,21 @@ def get_top_repliers(conn: sqlite3.Connection, limit: int = 25, days: int = 15) 
             COUNT(*)                         AS reply_count
         FROM notifications
         WHERE type = 'mention'
-          AND created_at >= datetime('now', ? || ' days')
+          {date_sql}
         GROUP BY account_acct
         ORDER BY reply_count DESC
         LIMIT ?
         """,
-        (f"-{days}", limit),
+        (*date_params, limit),
     ).fetchall()
     return [dict(r) for r in rows]
 
 
-def get_top_replied_to(conn: sqlite3.Connection, limit: int = 25, days: int = 15) -> list[dict]:
+def get_top_replied_to(conn: sqlite3.Connection, limit: int = 25, days: int | None = 15) -> list[dict]:
     """People you reply to most (your own reply toots, configurable window)."""
+    date_sql, date_params = _date_filter("t.created_at", days)
     rows = conn.execute(
-        """
+        f"""
         SELECT
             json_extract(t.raw_json, '$.mentions[0].acct')  AS acct,
             COUNT(*)                                          AS reply_count,
@@ -528,20 +537,21 @@ def get_top_replied_to(conn: sqlite3.Connection, limit: int = 25, days: int = 15
         ) n ON lower(json_extract(t.raw_json, '$.mentions[0].acct')) = lower(n.account_acct)
         WHERE t.in_reply_to_id IS NOT NULL
           AND json_extract(t.raw_json, '$.mentions[0].acct') IS NOT NULL
-          AND t.created_at >= datetime('now', ? || ' days')
+          {date_sql}
         GROUP BY lower(json_extract(t.raw_json, '$.mentions[0].acct'))
         ORDER BY reply_count DESC
         LIMIT ?
         """,
-        (f"-{days}", limit),
+        (*date_params, limit),
     ).fetchall()
     return [dict(r) for r in rows]
 
 
-def get_top_likers(conn: sqlite3.Connection, limit: int = 25, days: int = 15) -> list[dict]:
+def get_top_likers(conn: sqlite3.Connection, limit: int = 25, days: int | None = 15) -> list[dict]:
     """People who liked your toots most (favourite notifications)."""
+    date_sql, date_params = _date_filter("created_at", days)
     rows = conn.execute(
-        """
+        f"""
         SELECT
             account_acct                     AS acct,
             MAX(account_display_name)        AS display_name,
@@ -549,40 +559,43 @@ def get_top_likers(conn: sqlite3.Connection, limit: int = 25, days: int = 15) ->
             COUNT(*)                         AS count
         FROM notifications
         WHERE type = 'favourite'
-          AND created_at >= datetime('now', ? || ' days')
+          {date_sql}
         GROUP BY account_acct
         ORDER BY count DESC
         LIMIT ?
         """,
-        (f"-{days}", limit),
+        (*date_params, limit),
     ).fetchall()
     return [dict(r) for r in rows]
 
 
-def get_top_liked_by_me(conn: sqlite3.Connection, limit: int = 25, days: int = 15) -> list[dict]:
-    """People whose toots you liked most (your favourites)."""
+def get_top_liked_by_me(conn: sqlite3.Connection, limit: int = 25, days: int | None = 15, own_acct: str = "") -> list[dict]:
+    """People whose toots you liked most (your favourites), excluding your own account."""
+    date_sql, date_params = _date_filter("created_at", days)
     rows = conn.execute(
-        """
+        f"""
         SELECT
             account_acct                     AS acct,
             MAX(account_display_name)        AS display_name,
             MAX(account_avatar)              AS avatar,
             COUNT(*)                         AS count
         FROM favorites
-        WHERE favorited_at >= datetime('now', ? || ' days')
+        WHERE lower(account_acct) != lower(?)
+          {date_sql}
         GROUP BY account_acct
         ORDER BY count DESC
         LIMIT ?
         """,
-        (f"-{days}", limit),
+        (own_acct, *date_params, limit),
     ).fetchall()
     return [dict(r) for r in rows]
 
 
-def get_top_boosters(conn: sqlite3.Connection, limit: int = 25, days: int = 15) -> list[dict]:
+def get_top_boosters(conn: sqlite3.Connection, limit: int = 25, days: int | None = 15) -> list[dict]:
     """People who boosted your toots most (reblog notifications)."""
+    date_sql, date_params = _date_filter("created_at", days)
     rows = conn.execute(
-        """
+        f"""
         SELECT
             account_acct                     AS acct,
             MAX(account_display_name)        AS display_name,
@@ -590,20 +603,21 @@ def get_top_boosters(conn: sqlite3.Connection, limit: int = 25, days: int = 15) 
             COUNT(*)                         AS count
         FROM notifications
         WHERE type = 'reblog'
-          AND created_at >= datetime('now', ? || ' days')
+          {date_sql}
         GROUP BY account_acct
         ORDER BY count DESC
         LIMIT ?
         """,
-        (f"-{days}", limit),
+        (*date_params, limit),
     ).fetchall()
     return [dict(r) for r in rows]
 
 
-def get_top_boosted_by_me(conn: sqlite3.Connection, limit: int = 25, days: int = 15) -> list[dict]:
+def get_top_boosted_by_me(conn: sqlite3.Connection, limit: int = 25, days: int | None = 15) -> list[dict]:
     """People whose toots you boosted most (your reblogs)."""
+    date_sql, date_params = _date_filter("t.created_at", days)
     rows = conn.execute(
-        """
+        f"""
         SELECT
             t.reblog_account                              AS acct,
             COUNT(*)                                      AS count,
@@ -619,12 +633,12 @@ def get_top_boosted_by_me(conn: sqlite3.Connection, limit: int = 25, days: int =
         ) n ON lower(t.reblog_account) = lower(n.account_acct)
         WHERE t.reblog_id IS NOT NULL
           AND t.reblog_account IS NOT NULL
-          AND t.created_at >= datetime('now', ? || ' days')
+          {date_sql}
         GROUP BY lower(t.reblog_account)
         ORDER BY count DESC
         LIMIT ?
         """,
-        (f"-{days}", limit),
+        (*date_params, limit),
     ).fetchall()
     return [dict(r) for r in rows]
 

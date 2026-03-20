@@ -666,8 +666,8 @@ def get_topic_counts(conn: sqlite3.Connection, limit: int = 50, days: int | None
     date_sql = f"AND created_at >= datetime('now', '-{days} days')" if days else ""
     counts = Counter()
     for table in ("toots", "favorites", "bookmarks"):
-        rows = conn.execute(f"SELECT content_text FROM {table} WHERE content_text IS NOT NULL AND content_text != '' {date_sql}").fetchall()
-        for row in rows:
+        cursor = conn.execute(f"SELECT content_text FROM {table} WHERE content_text IS NOT NULL AND content_text != '' {date_sql}")
+        for row in cursor:
             words = re.findall(r'[a-zA-ZÀ-ÿ]{4,}', row["content_text"].lower())
             for word in words:
                 if word not in stopwords and not word.startswith("http"):

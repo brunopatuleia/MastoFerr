@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import quote as _url_quote
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -594,7 +594,7 @@ async def settings_page(request: Request, saved: str = ""):
 
 
 @app.get("/api/version")
-async def api_version():
+def api_version():
     """Check for updates by comparing local version with latest GitHub tag."""
     current = VERSION
     now = time.time()
@@ -872,7 +872,7 @@ async def toot_detail(request: Request, toot_id: str):
 
 
 @app.get("/backup/db")
-async def backup_db(request: Request):
+def backup_db(request: Request):
     """Download the SQLite database file."""
     if (auth := _require_auth(request)):
         return auth
@@ -885,18 +885,19 @@ async def backup_db(request: Request):
 
 
 @app.post("/backup/export")
-async def backup_export(request: Request):
+def backup_export(
+    request: Request,
+    include_toots: str | None = Form(None),
+    include_replies: str | None = Form(None),
+    include_favourites: str | None = Form(None),
+    include_bookmarks: str | None = Form(None),
+):
     """Download a filtered JSON export based on user-selected data types."""
     if (auth := _require_auth(request)):
         return auth
     import io, json as _json, zipfile
-    form = await request.form()
-    include_toots = "include_toots" in form
-    include_replies = "include_replies" in form
-    include_favourites = "include_favourites" in form
-    include_bookmarks = "include_bookmarks" in form
 
-    if not any([include_toots, include_replies, include_favourites, include_bookmarks]):
+    if not any([include_toots, include_replies, include_favourites, include_bookmarks]):  # None = unchecked
         return RedirectResponse(url="/settings#backup", status_code=302)
 
     export: dict = {"exported_at": __import__("datetime").datetime.utcnow().isoformat() + "Z"}
@@ -955,7 +956,7 @@ async def backup_export(request: Request):
 
 
 @app.get("/backup/markdown")
-async def backup_markdown(request: Request):
+def backup_markdown(request: Request):
     """Download a ZIP of all markdown toot backups."""
     if (auth := _require_auth(request)):
         return auth

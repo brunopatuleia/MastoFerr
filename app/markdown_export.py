@@ -7,11 +7,21 @@ from pathlib import Path
 
 from app.config import DB_PATH
 from app.database import get_db, get_sync_state, set_sync_state
+from html.parser import HTMLParser
 
 logger = logging.getLogger(__name__)
 
 MARKDOWN_PATH = Path(DB_PATH).parent / "markdown"
 
+class _Strip(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self._parts = []
+    def handle_data(self, data):
+        self._parts.append(data)
+    def handle_starttag(self, tag, attrs):
+        if tag in ("br", "p"):
+            self._parts.append("\n")
 
 def _toot_to_markdown(toot: sqlite3.Row) -> str:
     """Format a single toot as a Markdown block."""
@@ -22,18 +32,6 @@ def _toot_to_markdown(toot: sqlite3.Row) -> str:
         reblog_account = toot["reblog_account"] or "unknown"
         lines = [f"## {date} *(boost from @{reblog_account})*", ""]
         if toot["reblog_content"]:
-            from html.parser import HTMLParser
-
-            class _Strip(HTMLParser):
-                def __init__(self):
-                    super().__init__()
-                    self._parts = []
-                def handle_data(self, data):
-                    self._parts.append(data)
-                def handle_starttag(self, tag, attrs):
-                    if tag in ("br", "p"):
-                        self._parts.append("\n")
-
             p = _Strip()
             p.feed(toot["reblog_content"])
             reblog_text = "".join(p._parts).strip()

@@ -1421,7 +1421,7 @@ class ProfileUpdater:
                                             if settings.get("pu_nd_star_confirm") == "1":
                                                 webhook_url = settings.get("discord_webhook_url", "").strip()
                                                 if webhook_url:
-                                                    token = _queue_pending_toot(toot_text, cover_bytes, "image/jpeg", label)
+                                                    token = _queue_pending_toot(label, toot_text, cover_bytes, "image/jpeg", label)
                                                     _send_discord_confirmation(webhook_url, label, toot_text, f"{APP_URL}/confirm-toot/{token}")
                                                     logger.info(f"Loved track toot queued for confirmation: {label}")
                                                 else:

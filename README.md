@@ -159,22 +159,28 @@ Connect Mastoferr to your [Audiobookshelf](https://www.audiobookshelf.org/) serv
 
 **Post format:**
 ```
-The Name of the Wind [2007]
+The Name of the Wind
+The Kingkiller Chronicle, Book 1
 Patrick Rothfuss
+Narrated by Nick Podehl
+[2009]
 
 [cover image]
 
 #NowReading #Audiobooks #Books #Fantasy #Epic
 ```
 
-Genres are pulled directly from your Audiobookshelf metadata and appended as hashtags automatically.
+Subtitle and narrator are included when available. Genres are pulled directly from your Audiobookshelf metadata and appended as hashtags automatically (up to 5).
+
+**Optional share link:** If your Audiobookshelf server is publicly accessible, you can enter its public URL in the settings. Mastoferr will create a share link via the ABS API and append it to the toot. You can set how long the link stays active (in hours).
 
 ### Setup
 
 1. In Audiobookshelf, go to **Settings → API Keys** and create a new key
 2. In Mastoferr, go to **Settings → Auto Toots → Audiobookshelf**
 3. Enter your server URL (e.g. `http://192.168.1.x:13378`) and the API token
-4. Save — Mastoferr polls every 15 minutes by default and posts once per book
+4. Optionally enter the public ABS URL and share link expiry (hours) for share links
+5. Save — Mastoferr polls every 15 minutes by default and posts once per book
 
 Already-posted book IDs are tracked in the database so you'll never get duplicate toots.
 
@@ -195,6 +201,12 @@ Artist Name
 Genres are pulled from Navidrome and appended as hashtags (up to 5). Requires Navidrome configured in **Settings → Profile Fields → Music**.
 
 Enable in **Settings → Auto Toots → Album Listening Posts**.
+
+## Discord Confirmation
+
+Any auto-toot source (Audiobookshelf, album listening, loved tracks) can optionally require a confirmation before posting. When enabled, Mastoferr sends a message to a Discord webhook with a one-time confirmation link. Clicking the link posts the toot; ignoring it discards it (tokens expire after 10 minutes).
+
+Configure in **Settings → Auto Toots → Discord Confirmation**: enter your Discord webhook URL and enable the checkboxes for each source you want to gate.
 
 ## Loved Track Posts (Navidrome)
 
@@ -277,8 +289,16 @@ Security hardening (v1.1.0+) was reviewed and applied by [Claude Code](https://c
 - Explicit `rollback()` added to the database context manager (Gemini)
 - OAuth state parameter (CSRF token) generated on login, verified in callback, cleared on success
 - Auth session cookie upgraded from `SameSite=Lax` to `SameSite=Strict`
+- Session and OAuth state cookies use `Secure` flag when `APP_URL` is HTTPS
 - SSRF mitigation: user-supplied service URLs validated to block cloud metadata endpoints (169.254.169.254 etc.) while allowing private IPs for homelab use
+- Discord webhook URL validated against `discord.com/api/webhooks` allowlist to prevent SSRF
 - Prompt injection mitigation: user toot content wrapped in XML delimiter tags before being inserted into AI roast prompt
+- FTS5 search snippets HTML-escaped via sentinel markers before rendering, preventing stored XSS from archived toot content
+- Reflected XSS in `/confirm-toot` response fixed — toot label (from external sources) is HTML-escaped before rendering
+- Path traversal in media download fixed — `media_id` stripped to `[a-zA-Z0-9_-]` before use as filename
+- Media file extension allowlisted on download — only safe types (jpg/png/gif/webp/mp4/mp3/etc.) are written to disk
+- `/auth/logout` requires authentication to prevent CSRF-triggered session clearing
+- `/confirm-toot` rate-limited to 10 requests per 60 seconds per IP
 
 ## License
 

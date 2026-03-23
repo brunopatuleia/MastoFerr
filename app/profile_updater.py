@@ -1413,25 +1413,23 @@ class ProfileUpdater:
                                             if str(song["id"]) not in new_ids:
                                                 continue
                                             toot_text = _format_starred_toot(song)
+                                            label = f"{song.get('artist')} - {song.get('title')}"
                                             cover_id = song.get("coverArt") or song.get("albumId")
-                                            media_ids = None
+                                            cover_bytes = None
                                             if cover_id:
                                                 cover_bytes = navidrome_client.get_cover_art_bytes(cover_id)
-                                                if cover_bytes:
-                                                    try:
-                                                        media = mastodon.media_post(
-                                                            BytesIO(cover_bytes),
-                                                            mime_type="image/jpeg",
-                                                            description=f"{song.get('artist')} - {song.get('title')}",
-                                                        )
-                                                        media_ids = [media["id"]]
-                                                    except MastodonError as e:
-                                                        logger.error(f"Failed to upload cover for starred toot: {e}")
-                                            try:
-                                                mastodon.status_post(toot_text, media_ids=media_ids, visibility=settings.get("pu_toot_visibility") or "public")
-                                                logger.info(f"Posted starred toot: {song.get('artist')} - {song.get('title')}")
-                                            except MastodonError as e:
-                                                logger.error(f"Failed to post starred toot: {e}")
+                                            if settings.get("pu_nd_star_confirm") == "1":
+                                                webhook_url = settings.get("discord_webhook_url", "").strip()
+                                                if webhook_url:
+                                                    token = _queue_pending_toot(toot_text, cover_bytes, "image/jpeg", label)
+                                                    _send_discord_confirmation(webhook_url, label, toot_text, f"{APP_URL}/confirm-toot/{token}")
+                                                    logger.info(f"Loved track toot queued for confirmation: {label}")
+                                                else:
+                                                    logger.warning("pu_nd_star_confirm is set but discord_webhook_url is empty — posting directly")
+                                                    self._post_toot_with_cover(mastodon, toot_text, cover_bytes, label, visibility=settings.get("pu_toot_visibility") or "public")
+                                            else:
+                                                self._post_toot_with_cover(mastodon, toot_text, cover_bytes, label, visibility=settings.get("pu_toot_visibility") or "public")
+                                                logger.info(f"Posted starred toot: {label}")
                                         if starred_ids != known_ids:
                                             set_setting(conn, "pu_nd_starred_ids", json.dumps(list(starred_ids)))
                             except Exception as e:

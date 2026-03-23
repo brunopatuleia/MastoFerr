@@ -538,6 +538,28 @@ class AudiobookshelfClient:
             logger.error(f"Audiobookshelf cover download failed ({library_item_id}): {e}")
             return None
 
+    def create_share_link(self, library_item_id: str, expiry_hours: int = 0) -> str | None:
+        """Create a share link for a library item. Returns the slug, or None on failure.
+
+        expiry_hours=0 means permanent.
+        """
+        try:
+            body: dict = {"libraryItemId": library_item_id}
+            if expiry_hours and expiry_hours > 0:
+                expires_at = int((time.time() + expiry_hours * 3600) * 1000)
+                body["expiresAt"] = expires_at
+            resp = requests.post(
+                f"{self.server_url}/api/share/mediaProgress",
+                headers=self._headers,
+                json=body,
+                timeout=10,
+            )
+            resp.raise_for_status()
+            return resp.json().get("slug")
+        except Exception as e:
+            logger.error(f"Audiobookshelf share link creation failed ({library_item_id}): {e}")
+            return None
+
     def get_user_progress(self, library_item_id: str) -> dict | None:
         """Fetch user progress for a library item (includes isFinished)."""
         try:
@@ -853,7 +875,7 @@ def _genre_to_hashtag(genre: str) -> str:
     return "#" + "".join(w.capitalize() for w in cleaned.split())
 
 
-def _format_abs_toot(book: dict, settings: dict) -> str:
+def _format_abs_toot(book: dict, settings: dict, share_url: str = "") -> str:
     """Format a toot for a newly started Audiobookshelf book."""
     title = book.get("title", "Unknown")
     subtitle = book.get("subtitle", "")
@@ -878,12 +900,15 @@ def _format_abs_toot(book: dict, settings: dict) -> str:
         meta_parts.append(f"[{year}]")
     if meta_parts:
         parts.append(" ".join(meta_parts))
+    if share_url:
+        parts.append("")
+        parts.append(share_url)
     parts.append("")
     parts.append(hashtags)
     return "\n".join(parts)
 
 
-def _format_abs_finished_toot(book: dict, settings: dict) -> str:
+def _format_abs_finished_toot(book: dict, settings: dict, share_url: str = "") -> str:
     """Format a toot for a finished Audiobookshelf audiobook."""
     title = book.get("title", "Unknown")
     subtitle = book.get("subtitle", "")
@@ -908,6 +933,9 @@ def _format_abs_finished_toot(book: dict, settings: dict) -> str:
         meta_parts.append(f"[{year}]")
     if meta_parts:
         parts.append(" ".join(meta_parts))
+    if share_url:
+        parts.append("")
+        parts.append(share_url)
     parts.append("")
     parts.append(hashtags)
     return "\n".join(parts)
@@ -1452,7 +1480,14 @@ class ProfileUpdater:
                             if not book:
                                 tooted_ids.add(item_id)  # skip broken items
                                 continue
-                            toot_text = _format_abs_toot(book, settings)
+                            share_url = ""
+                            abs_public_url = settings.get("abs_public_url", "").strip()
+                            if abs_public_url:
+                                expiry_hours = int(settings.get("abs_share_expiry_hours") or 0)
+                                slug = audiobookshelf.create_share_link(item_id, expiry_hours)
+                                if slug:
+                                    share_url = f"{abs_public_url.rstrip('/')}/audiobookshelf/share/{slug}"
+                            toot_text = _format_abs_toot(book, settings, share_url)
                             cover_bytes = audiobookshelf.get_cover_bytes(item_id)
                             label = book["title"]
                             if settings.get("pu_abs_confirm") == "1":
@@ -1489,7 +1524,14 @@ class ProfileUpdater:
                                 finished_tooted.add(item_id)
                                 if not book:
                                     continue
-                                toot_text = _format_abs_finished_toot(book, settings)
+                                share_url = ""
+                                abs_public_url = settings.get("abs_public_url", "").strip()
+                                if abs_public_url:
+                                    expiry_hours = int(settings.get("abs_share_expiry_hours") or 0)
+                                    slug = audiobookshelf.create_share_link(item_id, expiry_hours)
+                                    if slug:
+                                        share_url = f"{abs_public_url.rstrip('/')}/audiobookshelf/share/{slug}"
+                                toot_text = _format_abs_finished_toot(book, settings, share_url)
                                 cover_bytes = audiobookshelf.get_cover_bytes(item_id)
                                 label = book["title"]
                                 if settings.get("pu_abs_finished_confirm") == "1":

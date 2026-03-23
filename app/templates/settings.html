@@ -378,6 +378,11 @@
                         <p class="setup-hint" style="margin-top: 0.25rem;">Genres from Audiobookshelf are appended automatically. Leave blank for defaults.</p>
                         <label for="pu_abs_interval" style="margin-top: 0.75rem;">Check interval (seconds)</label>
                         <input type="number" id="pu_abs_interval" name="pu_abs_interval" min="60" placeholder="900" value="{{ settings.get('pu_abs_interval', '900') }}">
+                        <label for="abs_public_url" style="margin-top: 0.75rem;">Public URL <span style="font-weight: normal; opacity: 0.6;">(optional)</span></label>
+                        <input type="text" id="abs_public_url" name="abs_public_url" placeholder="https://audiobookshelf.example.com" value="{{ settings.get('abs_public_url', '') }}">
+                        <p class="setup-hint" style="margin-top: 0.25rem;">If set, a share link is added to the toot. Applies to both started and finished toots.</p>
+                        <label for="abs_share_expiry_hours" style="margin-top: 0.75rem;">Share link expiry (hours, 0 = permanent)</label>
+                        <input type="number" id="abs_share_expiry_hours" name="abs_share_expiry_hours" min="0" placeholder="0" value="{{ settings.get('abs_share_expiry_hours', '0') }}">
                     </div>
                 </div>
 

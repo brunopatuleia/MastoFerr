@@ -1091,6 +1091,7 @@ AUTO_TOOTS_SETTINGS_KEYS = [
     "pu_album_hashtags",
     "pu_abs_hashtags", "pu_abs_interval",
     "pu_abs_finished_hashtags",
+    "abs_public_url", "abs_share_expiry_hours",
     "discord_webhook_url",
 ]
 

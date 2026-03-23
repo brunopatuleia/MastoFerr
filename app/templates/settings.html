@@ -343,22 +343,22 @@
                     <input type="text" id="discord_webhook_url" name="discord_webhook_url" placeholder="https://discord.com/api/webhooks/..." value="{{ settings.get('discord_webhook_url', '') }}">
                     <p class="setup-hint" style="margin: 0.75rem 0 0.4rem 0;">Require confirmation for:</p>
                     <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.3rem;">
-                        <input type="checkbox" name="pu_album_confirm" value="1" {{ 'checked' if settings.get('pu_album_confirm', '0') == '1' }}>
+                        <input type="checkbox" name="pu_album_confirm" value="1" {{ 'checked' if settings.get('pu_album_confirm', '0') == '1' }} onchange="this.form.submit()">
                         Navidrome — Album Finished
                         <i class="info-tip">i<span class="tip-text">Album toots are held and sent to Discord for approval. Click the confirm link in Discord to publish.</span></i>
                     </label>
                     <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.3rem;">
-                        <input type="checkbox" name="pu_abs_confirm" value="1" {{ 'checked' if settings.get('pu_abs_confirm', '0') == '1' }}>
+                        <input type="checkbox" name="pu_abs_confirm" value="1" {{ 'checked' if settings.get('pu_abs_confirm', '0') == '1' }} onchange="this.form.submit()">
                         Audiobookshelf — New Audiobook
                         <i class="info-tip">i<span class="tip-text">New audiobook toots are held and sent to Discord for approval. Click the confirm link in Discord to publish.</span></i>
                     </label>
                     <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.3rem;">
-                        <input type="checkbox" name="pu_abs_finished_confirm" value="1" {{ 'checked' if settings.get('pu_abs_finished_confirm', '0') == '1' }}>
+                        <input type="checkbox" name="pu_abs_finished_confirm" value="1" {{ 'checked' if settings.get('pu_abs_finished_confirm', '0') == '1' }} onchange="this.form.submit()">
                         Audiobookshelf — Finished Audiobook
                         <i class="info-tip">i<span class="tip-text">Finished audiobook toots are held and sent to Discord for approval. Click the confirm link in Discord to publish.</span></i>
                     </label>
                     <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" name="pu_nd_star_confirm" value="1" {{ 'checked' if settings.get('pu_nd_star_confirm', '0') == '1' }}>
+                        <input type="checkbox" name="pu_nd_star_confirm" value="1" {{ 'checked' if settings.get('pu_nd_star_confirm', '0') == '1' }} onchange="this.form.submit()">
                         Navidrome — Loved Track
                         <i class="info-tip">i<span class="tip-text">Loved track toots are held and sent to Discord for approval. Click the confirm link in Discord to publish.</span></i>
                     </label>

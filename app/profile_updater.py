@@ -513,7 +513,9 @@ class AudiobookshelfClient:
             return {
                 "id": library_item_id,
                 "title": meta.get("title") or "Unknown Title",
+                "subtitle": meta.get("subtitle") or "",
                 "author": meta.get("authorName") or "",
+                "narrator": meta.get("narratorName") or "",
                 "year": year,
                 "genres": meta.get("genres") or [],
             }
@@ -775,27 +777,37 @@ def _format_starred_toot(song: dict) -> str:
     return f"{artist} - {title}\n\n{hashtags}"
 
 
+def _genre_to_hashtag(genre: str) -> str:
+    """Convert a genre string to a hashtag, stripping & and extra spaces."""
+    cleaned = genre.replace("&", "").replace("  ", " ").strip()
+    return "#" + "".join(w.capitalize() for w in cleaned.split())
+
+
 def _format_abs_toot(book: dict, settings: dict) -> str:
     """Format a toot for a newly started Audiobookshelf book."""
     title = book.get("title", "Unknown")
+    subtitle = book.get("subtitle", "")
     author = book.get("author", "")
+    narrator = book.get("narrator", "")
     year = book.get("year", "")
     genres = book.get("genres", [])
 
-    title_line = f"{title} [{year}]" if year else title
-
-    # Convert genres to hashtags: "Science Fiction" → "#ScienceFiction"
-    genre_tags = " ".join(
-        "#" + "".join(w.capitalize() for w in g.split())
-        for g in genres[:5]
-    )
+    genre_tags = " ".join(_genre_to_hashtag(g) for g in genres[:5])
 
     base_tags = settings.get("pu_abs_hashtags", "").strip() or "#NowReading #Audiobooks #Books"
     hashtags = f"{base_tags} {genre_tags}".strip() if genre_tags else base_tags
 
-    parts = [title_line]
-    if author:
-        parts.append(author)
+    parts = [title]
+    if subtitle:
+        parts.append(subtitle)
+    parts.append("")
+    by_line = f"by {author}" if author else ""
+    narrated_line = f"narrated by {narrator}" if narrator else ""
+    meta_parts = [p for p in [by_line, narrated_line] if p]
+    if year:
+        meta_parts.append(f"[{year}]")
+    if meta_parts:
+        parts.append(" ".join(meta_parts))
     parts.append("")
     parts.append(hashtags)
     return "\n".join(parts)
@@ -804,23 +816,28 @@ def _format_abs_toot(book: dict, settings: dict) -> str:
 def _format_abs_finished_toot(book: dict, settings: dict) -> str:
     """Format a toot for a finished Audiobookshelf audiobook."""
     title = book.get("title", "Unknown")
+    subtitle = book.get("subtitle", "")
     author = book.get("author", "")
+    narrator = book.get("narrator", "")
     year = book.get("year", "")
     genres = book.get("genres", [])
 
-    title_line = f"{title} [{year}]" if year else title
-
-    genre_tags = " ".join(
-        "#" + "".join(w.capitalize() for w in g.split())
-        for g in genres[:5]
-    )
+    genre_tags = " ".join(_genre_to_hashtag(g) for g in genres[:5])
 
     base_tags = settings.get("pu_abs_finished_hashtags", "").strip() or "#FinishedReading #Audiobooks #Books"
     hashtags = f"{base_tags} {genre_tags}".strip() if genre_tags else base_tags
 
-    parts = [f"Just finished: {title_line}"]
-    if author:
-        parts.append(author)
+    parts = [f"Just finished: {title}"]
+    if subtitle:
+        parts.append(subtitle)
+    parts.append("")
+    by_line = f"by {author}" if author else ""
+    narrated_line = f"narrated by {narrator}" if narrator else ""
+    meta_parts = [p for p in [by_line, narrated_line] if p]
+    if year:
+        meta_parts.append(f"[{year}]")
+    if meta_parts:
+        parts.append(" ".join(meta_parts))
     parts.append("")
     parts.append(hashtags)
     return "\n".join(parts)

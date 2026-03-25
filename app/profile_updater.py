@@ -1211,6 +1211,7 @@ class ProfileUpdater:
         self.running = False
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        self._post_lock = threading.Lock()  # prevents duplicate posts if two threads overlap
         # Status tracking — restore persisted values (DB may not exist yet on first boot)
         try:
             with get_db() as conn:
@@ -1596,33 +1597,38 @@ class ProfileUpdater:
                                     total = self._album_session["total_tracks"]
                                     seen = len(self._album_session["tracks_seen"])
                                     if total > 0 and seen / total >= 0.65:
-                                        album_info = self._album_session["album_info"]
-                                        toot_text = _format_album_toot(album_info, settings)
-                                        cover_bytes = navidrome_client.get_cover_art_bytes(
-                                            album_info.get("cover_art_id", album_id)
-                                        )
-                                        label = f"{album_info['name']} by {album_info['artist']}"
-                                        if settings.get("pu_album_confirm") == "1":
-                                            webhook_url = settings.get("discord_webhook_url", "").strip()
-                                            if webhook_url:
-                                                from app.config import APP_URL
-                                                token = _queue_pending_toot(
-                                                    label, toot_text, cover_bytes,
-                                                    "image/jpeg", label,
-                                                )
-                                                _send_discord_confirmation(
-                                                    webhook_url, label, toot_text,
-                                                    f"{APP_URL}/confirm-toot/{token}",
-                                                )
-                                                logger.info(f"Album toot queued for confirmation: {label}")
+                                        with self._post_lock:
+                                            # Re-check under lock — a second thread may have
+                                            # already posted while we were waiting
+                                            if self._album_session.get("posted"):
+                                                continue
+                                            album_info = self._album_session["album_info"]
+                                            toot_text = _format_album_toot(album_info, settings)
+                                            cover_bytes = navidrome_client.get_cover_art_bytes(
+                                                album_info.get("cover_art_id", album_id)
+                                            )
+                                            label = f"{album_info['name']} by {album_info['artist']}"
+                                            if settings.get("pu_album_confirm") == "1":
+                                                webhook_url = settings.get("discord_webhook_url", "").strip()
+                                                if webhook_url:
+                                                    from app.config import APP_URL
+                                                    token = _queue_pending_toot(
+                                                        label, toot_text, cover_bytes,
+                                                        "image/jpeg", label,
+                                                    )
+                                                    _send_discord_confirmation(
+                                                        webhook_url, label, toot_text,
+                                                        f"{APP_URL}/confirm-toot/{token}",
+                                                    )
+                                                    logger.info(f"Album toot queued for confirmation: {label}")
+                                                else:
+                                                    logger.warning("pu_album_confirm is set but discord_webhook_url is empty — posting directly")
+                                                    self._post_toot_with_cover(mastodon, toot_text, cover_bytes, label, visibility=settings.get("pu_toot_visibility") or "public")
                                             else:
-                                                logger.warning("pu_album_confirm is set but discord_webhook_url is empty — posting directly")
                                                 self._post_toot_with_cover(mastodon, toot_text, cover_bytes, label, visibility=settings.get("pu_toot_visibility") or "public")
-                                        else:
-                                            self._post_toot_with_cover(mastodon, toot_text, cover_bytes, label, visibility=settings.get("pu_toot_visibility") or "public")
-                                            logger.info(f"Posted album toot: {label} ({seen}/{total} tracks heard)")
-                                        self._album_session["posted"] = True
-                                        self._save_album_session()
+                                                logger.info(f"Posted album toot: {label} ({seen}/{total} tracks heard)")
+                                            self._album_session["posted"] = True
+                                            self._save_album_session()
 
                         # Navidrome starred track → toot
                         if settings.get("pu_nd_star_toot_enabled") == "1" and navidrome_client:

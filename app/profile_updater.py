@@ -1783,6 +1783,14 @@ class ProfileUpdater:
                                 self._post_toot_with_cover(mastodon, toot_text, cover_bytes, f"Cover of {label}", post_type="abs_started", visibility=settings.get("pu_toot_visibility") or "public")
                                 logger.info(f"Posted ABS started toot: {label}")
                             tooted_ids.add(item_id)
+                            # Update profile book field to show currently-reading book
+                            book_info = self._format_book(book, settings)
+                            if book_info != self.last_book_info:
+                                self.last_book_info = book_info
+                                changed = True
+                                logger.info(f"Book field updated (ABS started): {book_info}")
+                                with get_db() as conn:
+                                    set_setting(conn, "pu_last_book_info", book_info)
 
                         # Books that just left in-progress — check if finished
                         if settings.get("pu_abs_finished_enabled") == "1" and prev_ids:
@@ -1827,6 +1835,14 @@ class ProfileUpdater:
                                 else:
                                     self._post_toot_with_cover(mastodon, toot_text, cover_bytes, f"Cover of {label}", post_type="abs_finished", visibility=settings.get("pu_toot_visibility") or "public")
                                     logger.info(f"Posted ABS finished toot: {label}")
+                                # Update profile book field to show the finished book
+                                book_info = self._format_book(book, settings)
+                                if book_info != self.last_book_info:
+                                    self.last_book_info = book_info
+                                    changed = True
+                                    logger.info(f"Book field updated (ABS finished): {book_info}")
+                                    with get_db() as conn:
+                                        set_setting(conn, "pu_last_book_info", book_info)
 
                         # Persist updated sets (cap at 500 to avoid unbounded growth)
                         with get_db() as conn:

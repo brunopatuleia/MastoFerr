@@ -6,6 +6,19 @@ All notable changes to Mastoferr are documented here.
 
 ---
 
+## [2026-04-01]
+
+### Added
+- Live log viewer at `/logs` — in-memory circular buffer (last 500 entries) attached to the root logger; auto-refreshes every 3 seconds; colour-coded by level (INFO / WARNING / ERROR); filterable by minimum level; Clear button; link in the nav bar
+- Auto-toot dedup failsafe — a `posted_toots` DB table records every auto-toot (type + SHA-256 content hash + timestamp); posting is blocked if the same type was sent within **30 minutes** or the identical content within **24 hours**; covers all paths: album, starred track, book started/finished (Goodreads), weekly artists, ABS started/finished, and the Discord confirm-toot endpoint
+
+### Fixed
+- **Duplicate auto-toots on settings save (root cause)** — `stop()` now joins the old profile-updater thread (up to 20 s) before returning, so `start()` never launches a new thread while the old one is still live; previous fix (2026-03-26) only guarded `start()`, leaving a 5 s window where API calls could keep the old thread alive and both threads fired toots simultaneously; `_post_lock` only protected album toots, so starred tracks, ABS books, book events, and weekly artists were still vulnerable
+- **Sleep skipped after album toot** — the double-lock guard used `continue` to skip the duplicate post, which also skipped `stop_event.wait(loop_interval)`, causing a CPU spin-loop; replaced with a proper `if not posted:` guard so the sleep always runs
+- **ABS finished/started book not updating profile** — finishing or starting an audiobook on Audiobookshelf now immediately updates the **LAST BOOK** Mastodon profile field in the same loop iteration; previously only Goodreads fed that field
+
+---
+
 ## [Unreleased]
 
 ### Added

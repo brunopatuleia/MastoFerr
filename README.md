@@ -8,11 +8,13 @@ A self-hosted Mastodon activity archiver with full-text search, profile updater,
 
 - Archive toots, notifications, favorites, bookmarks, and media
 - Full-text search (SQLite FTS5)
-- Profile updater — now-playing music, last-watched movie, last-read book
-- Auto-post when you start an audiobook (Audiobookshelf), finish an album (Navidrome), or star a track
+- Profile updater — now-playing music, last-watched movie, last-read book (Goodreads or Audiobookshelf)
+- Auto-post when you finish an album (Navidrome), star a track, start/finish an audiobook (Audiobookshelf), or finish a book (Goodreads)
+- Dedup failsafe — blocks the same post type within 30 minutes and the same content within 24 hours
 - Discord confirmation flow before any auto-toot is posted
 - Follower tracking with follow/unfollow history
 - Weekly music recap post
+- Live log viewer at `/logs` with auto-refresh
 - AI-powered roast of your posting habits
 - OAuth login — no tokens to copy/paste
 - Dark, responsive web UI

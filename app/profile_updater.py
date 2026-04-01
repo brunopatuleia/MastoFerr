@@ -1185,14 +1185,6 @@ class ProfileUpdater:
         self.error: str | None = None
 
     def start(self):
-        # If a previous thread is still alive (e.g. stop() was just called),
-        # wait briefly for it to exit before spawning a new one.  Without this,
-        # stop()+start() on settings-save can leave two threads running at the
-        # same time, both able to fire the same toot.
-        if self._thread is not None and self._thread.is_alive():
-            self._thread.join(timeout=5)
-        if self._thread is not None and self._thread.is_alive():
-            logger.warning("Profile updater: old thread still alive after 5 s, proceeding anyway")
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
@@ -1204,6 +1196,16 @@ class ProfileUpdater:
             return
         self._stop_event.set()
         self.running = False
+        # Wait for the thread to actually finish before returning.  Without this,
+        # stop()+start() on settings-save can leave two threads alive at the same
+        # time and both fire duplicate toots.  HTTP calls inside the loop can take
+        # up to ~15 s so we wait that long; if the thread is still alive after that
+        # we log a warning and proceed — the stop-event is already set so it will
+        # exit on its next iteration.
+        if self._thread is not None and self._thread.is_alive():
+            self._thread.join(timeout=20)
+        if self._thread is not None and self._thread.is_alive():
+            logger.warning("Profile updater: old thread still alive after 20 s stop wait")
         logger.info("Profile updater stopped")
 
     def get_status(self) -> dict:
@@ -1553,34 +1555,33 @@ class ProfileUpdater:
                                         with self._post_lock:
                                             # Re-check under lock — a second thread may have
                                             # already posted while we were waiting
-                                            if self._album_session.get("posted"):
-                                                continue
-                                            album_info = self._album_session["album_info"]
-                                            toot_text = _format_album_toot(album_info, settings)
-                                            cover_bytes = navidrome_client.get_cover_art_bytes(
-                                                album_info.get("cover_art_id", album_id)
-                                            )
-                                            label = f"{album_info['name']} by {album_info['artist']}"
-                                            if settings.get("pu_album_confirm") == "1":
-                                                webhook_url = settings.get("discord_webhook_url", "").strip()
-                                                if webhook_url:
-                                                    token = _queue_pending_toot(
-                                                        label, toot_text, cover_bytes,
-                                                        "image/jpeg", label,
-                                                    )
-                                                    _send_discord_confirmation(
-                                                        webhook_url, label, toot_text,
-                                                        f"{APP_URL}/confirm-toot/{token}",
-                                                    )
-                                                    logger.info(f"Album toot queued for confirmation: {label}")
+                                            if not self._album_session.get("posted"):
+                                                album_info = self._album_session["album_info"]
+                                                toot_text = _format_album_toot(album_info, settings)
+                                                cover_bytes = navidrome_client.get_cover_art_bytes(
+                                                    album_info.get("cover_art_id", album_id)
+                                                )
+                                                label = f"{album_info['name']} by {album_info['artist']}"
+                                                if settings.get("pu_album_confirm") == "1":
+                                                    webhook_url = settings.get("discord_webhook_url", "").strip()
+                                                    if webhook_url:
+                                                        token = _queue_pending_toot(
+                                                            label, toot_text, cover_bytes,
+                                                            "image/jpeg", label,
+                                                        )
+                                                        _send_discord_confirmation(
+                                                            webhook_url, label, toot_text,
+                                                            f"{APP_URL}/confirm-toot/{token}",
+                                                        )
+                                                        logger.info(f"Album toot queued for confirmation: {label}")
+                                                    else:
+                                                        logger.warning("pu_album_confirm is set but discord_webhook_url is empty — posting directly")
+                                                        self._post_toot_with_cover(mastodon, toot_text, cover_bytes, label, visibility=settings.get("pu_toot_visibility") or "public")
                                                 else:
-                                                    logger.warning("pu_album_confirm is set but discord_webhook_url is empty — posting directly")
                                                     self._post_toot_with_cover(mastodon, toot_text, cover_bytes, label, visibility=settings.get("pu_toot_visibility") or "public")
-                                            else:
-                                                self._post_toot_with_cover(mastodon, toot_text, cover_bytes, label, visibility=settings.get("pu_toot_visibility") or "public")
-                                                logger.info(f"Posted album toot: {label} ({seen}/{total} tracks heard)")
-                                            self._album_session["posted"] = True
-                                            self._save_album_session()
+                                                    logger.info(f"Posted album toot: {label} ({seen}/{total} tracks heard)")
+                                                self._album_session["posted"] = True
+                                                self._save_album_session()
 
                         # Navidrome starred track → toot
                         if settings.get("pu_nd_star_toot_enabled") == "1" and navidrome_client:

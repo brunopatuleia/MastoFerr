@@ -1194,7 +1194,7 @@ AUTO_TOOTS_CHECKBOX_KEYS = [
     "pu_album_enabled", "pu_album_confirm",
     "pu_abs_enabled", "pu_abs_confirm",
     "pu_abs_finished_enabled", "pu_abs_finished_confirm",
-    "pu_nd_star_toot_enabled",
+    "pu_nd_star_toot_enabled", "pu_nd_star_confirm",
 ]
 
 

@@ -3,31 +3,27 @@
 
 {% set field_order = settings.get('pu_field_order', 'music,movies,books,custom').split(',') %}
 
+{% block sidebar_extra %}
+<div class="sidebar-nav-sep"></div>
+<span class="sidebar-sub-heading">Account</span>
+<a href="#account" data-panel="account" class="sidebar-sub-link active">Profile</a>
+<span class="sidebar-sub-heading">Settings</span>
+<a href="#ai-roast" data-panel="ai-roast" class="sidebar-sub-link">AI Roast</a>
+<a href="#services" data-panel="services" class="sidebar-sub-link">External Services</a>
+<a href="#profile-updater" data-panel="profile-updater" class="sidebar-sub-link">Auto Profile</a>
+<a href="#toots-updater" data-panel="toots-updater" class="sidebar-sub-link">Auto Toots</a>
+<span class="sidebar-sub-heading">App</span>
+<a href="#app" data-panel="app" class="sidebar-sub-link">Display</a>
+<a href="#backup" data-panel="backup" class="sidebar-sub-link">Backup</a>
+<a href="#about" data-panel="about" class="sidebar-sub-link">About</a>
+<a href="/logout" class="sidebar-sub-link">Logout</a>
+{% endblock %}
+
 {% block content %}
 {% if saved %}
 <div class="sync-status done" style="display:block; margin-bottom: 1rem;">Settings saved!</div>
 {% endif %}
 
-<div class="settings-layout">
-    <!-- Sidebar -->
-    <nav class="settings-sidebar">
-        <span class="sidebar-heading">Account</span>
-        <a href="#account" data-panel="account" class="active">Profile</a>
-
-        <span class="sidebar-heading">Settings</span>
-        <a href="#ai-roast" data-panel="ai-roast">AI Roast</a>
-        <a href="#services" data-panel="services">External Services</a>
-        <a href="#profile-updater" data-panel="profile-updater">Auto Profile</a>
-        <a href="#toots-updater" data-panel="toots-updater">Auto Toots</a>
-
-        <span class="sidebar-heading">App</span>
-        <a href="#app" data-panel="app">Display</a>
-        <a href="#backup" data-panel="backup">Backup</a>
-        <a href="#about" data-panel="about">About</a>
-        <a href="/logout">Logout</a>
-    </nav>
-
-    <!-- Content -->
     <div class="settings-content">
 
         <!-- ─── Account ─────────────────────────────────────────── -->
@@ -565,11 +561,10 @@
         </div>
 
     </div>
-</div>
 
 <script>
 (function() {
-    var links = document.querySelectorAll('.settings-sidebar a[data-panel]');
+    var links = document.querySelectorAll('a[data-panel]');
     var panels = document.querySelectorAll('.settings-panel');
 
     function showPanel(panelId) {

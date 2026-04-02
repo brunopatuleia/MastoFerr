@@ -6,10 +6,8 @@
 {% block sidebar_extra %}
 <div class="sidebar-nav-sep"></div>
 <span class="sidebar-sub-heading">Account</span>
-<a href="#account" data-panel="account" class="sidebar-sub-link active">Profile</a>
+<a href="#connections" data-panel="connections" class="sidebar-sub-link active">Connections</a>
 <span class="sidebar-sub-heading">Settings</span>
-<a href="#ai-roast" data-panel="ai-roast" class="sidebar-sub-link">AI Roast</a>
-<a href="#services" data-panel="services" class="sidebar-sub-link">External Services</a>
 <a href="#profile-updater" data-panel="profile-updater" class="sidebar-sub-link">Auto Profile</a>
 <a href="#toots-updater" data-panel="toots-updater" class="sidebar-sub-link">Auto Toots</a>
 <span class="sidebar-sub-heading">App</span>
@@ -26,10 +24,13 @@
 
     <div class="settings-content">
 
-        <!-- ─── Account ─────────────────────────────────────────── -->
-        <div id="panel-account" class="settings-panel active">
-            <h1>Profile</h1>
+        <!-- ─── Connections ──────────────────────────────────────── -->
+        <div id="panel-connections" class="settings-panel active">
+            <h1>Connections</h1>
+
             <div class="settings-section">
+                <h2>Mastodon</h2>
+                <p class="connection-disclaimer">Your account — all archived toots, notifications, favorites, and bookmarks are fetched from here.</p>
                 {% if settings.get('account_acct') %}
                 <div class="account-info" style="margin-bottom: 1rem;">
                     {% if settings.get('account_avatar') %}
@@ -47,15 +48,122 @@
                 <p class="setup-hint">No account connected. <a href="/setup">Set up your account</a>.</p>
                 {% endif %}
             </div>
-        </div>
 
-        <!-- ─── AI Roast ────────────────────────────────────────── -->
-        <div id="panel-ai-roast" class="settings-panel">
-            <h1>AI Roast</h1>
-            <div class="settings-section">
-                <p class="setup-hint" style="margin-bottom: 1rem;">Connect an AI provider to get a personalized roast on your dashboard. Optional - leave disabled if you don't want it.</p>
+            <form action="/settings/services" method="post" class="setup-form">
 
-                <form action="/settings/ai" method="post" class="setup-form">
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>Last.fm</h2>
+                    <p class="connection-disclaimer">Used by Auto Profile for now-playing updates, and by Auto Toots for weekly top artists.</p>
+                    <label for="pu_lastfm_username">Username</label>
+                    <input type="text" id="pu_lastfm_username" name="pu_lastfm_username" placeholder="Your Last.fm username" value="{{ settings.get('pu_lastfm_username', '') }}">
+                    <label for="pu_lastfm_api_key" style="margin-top: 0.75rem;">API Key</label>
+                    <input type="password" id="pu_lastfm_api_key" name="pu_lastfm_api_key" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_lastfm_api_key') else 'Get from last.fm/api/account/create' }}">
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>libre.fm</h2>
+                    <p class="connection-disclaimer">Alternative to Last.fm for now-playing updates in your Mastodon bio. No API key required.</p>
+                    <label for="pu_librefm_username">Username <i class="info-tip">i<span class="tip-text">No API key needed — libre.fm is open and key-free for public reads.</span></i></label>
+                    <input type="text" id="pu_librefm_username" name="pu_librefm_username" placeholder="Your libre.fm username" value="{{ settings.get('pu_librefm_username', '') }}">
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>ListenBrainz</h2>
+                    <p class="connection-disclaimer">Used by Auto Profile for now-playing updates, and by Auto Toots for weekly top artists.</p>
+                    <label for="pu_listenbrainz_username">Username</label>
+                    <input type="text" id="pu_listenbrainz_username" name="pu_listenbrainz_username" placeholder="Your ListenBrainz username" value="{{ settings.get('pu_listenbrainz_username', '') }}">
+                    <label for="pu_listenbrainz_token" style="margin-top: 0.75rem;">Token <span class="setup-hint">(optional)</span></label>
+                    <input type="password" id="pu_listenbrainz_token" name="pu_listenbrainz_token" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_listenbrainz_token') else 'For authenticated access' }}">
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>Navidrome / Subsonic</h2>
+                    <p class="connection-disclaimer">Used by Auto Profile (now playing) and Auto Toots (album finished, loved tracks, weekly top artists).</p>
+                    <label for="pu_navidrome_url">Server URL</label>
+                    <input type="text" id="pu_navidrome_url" name="pu_navidrome_url" placeholder="https://navidrome.example.com" value="{{ settings.get('pu_navidrome_url', '') }}">
+                    <label for="pu_navidrome_username" style="margin-top: 0.75rem;">Username</label>
+                    <input type="text" id="pu_navidrome_username" name="pu_navidrome_username" placeholder="Your Navidrome username" value="{{ settings.get('pu_navidrome_username', '') }}">
+                    <label for="pu_navidrome_password" style="margin-top: 0.75rem;">Password</label>
+                    <input type="password" id="pu_navidrome_password" name="pu_navidrome_password" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_navidrome_password') else 'Your Navidrome password' }}">
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>Spotify</h2>
+                    <p class="connection-disclaimer">Used by Auto Profile to show your currently playing track in your Mastodon bio.</p>
+                    <p class="setup-hint" style="margin-bottom: 0.75rem;">
+                        Create an app at <a href="https://developer.spotify.com/dashboard" target="_blank">developer.spotify.com</a>, then get a refresh token with <code>user-read-currently-playing user-read-recently-played</code> scopes.
+                        <a href="https://accounts.spotify.com/authorize?response_type=code&scope=user-read-currently-playing+user-read-recently-played" target="_blank">One-time auth guide →</a>
+                    </p>
+                    <label for="pu_spotify_client_id">Client ID</label>
+                    <input type="text" id="pu_spotify_client_id" name="pu_spotify_client_id" placeholder="Your Spotify app Client ID" value="{{ settings.get('pu_spotify_client_id', '') }}">
+                    <label for="pu_spotify_client_secret" style="margin-top: 0.75rem;">Client Secret</label>
+                    <input type="password" id="pu_spotify_client_secret" name="pu_spotify_client_secret" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_spotify_client_secret') else 'Your Spotify app Client Secret' }}">
+                    <label for="pu_spotify_refresh_token" style="margin-top: 0.75rem;">Refresh Token</label>
+                    <input type="password" id="pu_spotify_refresh_token" name="pu_spotify_refresh_token" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_spotify_refresh_token') else 'Long-lived refresh token' }}">
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>Jellyfin</h2>
+                    <p class="connection-disclaimer">Used by Auto Profile to show what you're currently watching in your Mastodon bio.</p>
+                    <p class="setup-hint" style="margin-bottom: 0.75rem;">Get an API key from Dashboard → API Keys. User ID is optional — leave blank to show any active session.</p>
+                    <label for="pu_jellyfin_url">Server URL</label>
+                    <input type="text" id="pu_jellyfin_url" name="pu_jellyfin_url" placeholder="http://192.168.1.x:8096" value="{{ settings.get('pu_jellyfin_url', '') }}">
+                    <label for="pu_jellyfin_api_key" style="margin-top: 0.75rem;">API Key</label>
+                    <input type="password" id="pu_jellyfin_api_key" name="pu_jellyfin_api_key" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_jellyfin_api_key') else 'From Dashboard → API Keys' }}">
+                    <label for="pu_jellyfin_user_id" style="margin-top: 0.75rem;">User ID <span class="setup-hint">(optional)</span></label>
+                    <input type="text" id="pu_jellyfin_user_id" name="pu_jellyfin_user_id" placeholder="Leave blank for any active session" value="{{ settings.get('pu_jellyfin_user_id', '') }}">
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>Plex</h2>
+                    <p class="connection-disclaimer">Used by Auto Profile to show what you're currently watching in your Mastodon bio.</p>
+                    <p class="setup-hint" style="margin-bottom: 0.75rem;">Find your token at plex.tv/claim or by inspecting any Plex API request (look for <code>X-Plex-Token</code>).</p>
+                    <label for="pu_plex_url">Server URL</label>
+                    <input type="text" id="pu_plex_url" name="pu_plex_url" placeholder="http://192.168.1.x:32400" value="{{ settings.get('pu_plex_url', '') }}">
+                    <label for="pu_plex_token" style="margin-top: 0.75rem;">Token</label>
+                    <input type="password" id="pu_plex_token" name="pu_plex_token" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_plex_token') else 'Your X-Plex-Token' }}">
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>Tautulli</h2>
+                    <p class="connection-disclaimer">Alternative to Plex for now-watching updates in your Mastodon bio.</p>
+                    <p class="setup-hint" style="margin-bottom: 0.75rem;">Get an API key from Settings → Web Interface → API. Alternative to using Plex directly.</p>
+                    <label for="pu_tautulli_url">Server URL</label>
+                    <input type="text" id="pu_tautulli_url" name="pu_tautulli_url" placeholder="http://192.168.1.x:8181" value="{{ settings.get('pu_tautulli_url', '') }}">
+                    <label for="pu_tautulli_api_key" style="margin-top: 0.75rem;">API Key</label>
+                    <input type="password" id="pu_tautulli_api_key" name="pu_tautulli_api_key" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_tautulli_api_key') else 'From Settings → Web Interface → API' }}">
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>Letterboxd</h2>
+                    <p class="connection-disclaimer">Used by Auto Profile to show your last watched film, and by Auto Toots for movie diary events.</p>
+                    <label for="pu_letterboxd_rss_url">RSS Feed URL</label>
+                    <input type="text" id="pu_letterboxd_rss_url" name="pu_letterboxd_rss_url" placeholder="https://letterboxd.com/USERNAME/rss/" value="{{ settings.get('pu_letterboxd_rss_url', '') }}">
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>Goodreads</h2>
+                    <p class="connection-disclaimer">Used by Auto Profile to show your current read, and by Auto Toots when you start or finish a book.</p>
+                    <label for="pu_goodreads_rss_url">RSS Feed URL</label>
+                    <input type="text" id="pu_goodreads_rss_url" name="pu_goodreads_rss_url" placeholder="https://www.goodreads.com/user/updates_rss/YOUR_ID?key=YOUR_KEY" value="{{ settings.get('pu_goodreads_rss_url', '') }}">
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>Audiobookshelf</h2>
+                    <p class="connection-disclaimer">Used by Auto Profile to show your current audiobook, and by Auto Toots when you start or finish listening.</p>
+                    <label for="pu_abs_url">Server URL</label>
+                    <input type="text" id="pu_abs_url" name="pu_abs_url" placeholder="http://192.168.1.x:13378" value="{{ settings.get('pu_abs_url', '') }}">
+                    <label for="pu_abs_token" style="margin-top: 0.75rem;">API Token</label>
+                    <input type="password" id="pu_abs_token" name="pu_abs_token" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_abs_token') else 'Get from Settings → API Keys in Audiobookshelf' }}">
+                </div>
+
+                <button type="submit" class="btn btn-sync" style="margin-top: 1.5rem;">Save Connections</button>
+            </form>
+
+            <form action="/settings/ai" method="post" class="setup-form" style="margin-top: 1.5rem;">
+                <div class="settings-section">
+                    <h2>AI Provider</h2>
+                    <p class="connection-disclaimer">Used to generate a personalized roast of your Mastodon activity on the dashboard. Optional.</p>
                     <label for="ai_provider">Provider</label>
                     <select id="ai_provider" name="ai_provider" class="select-input" onchange="toggleAiFields()">
                         <option value="">Disabled</option>
@@ -79,113 +187,7 @@
                     </div>
 
                     <button type="submit" class="btn btn-sync" style="margin-top: 1rem;">Save AI Settings</button>
-                </form>
-            </div>
-        </div>
-
-        <!-- ─── External Services ───────────────────────────────── -->
-        <div id="panel-services" class="settings-panel">
-            <h1>External Services</h1>
-            <p class="setup-hint" style="margin-bottom: 1.5rem;">Configure your API keys, credentials, and RSS feeds. These are used by Auto Profile and Auto Toots.</p>
-
-            <form action="/settings/services" method="post" class="setup-form">
-
-                <div class="settings-section">
-                    <h2>Last.fm</h2>
-                    <label for="pu_lastfm_username">Username</label>
-                    <input type="text" id="pu_lastfm_username" name="pu_lastfm_username" placeholder="Your Last.fm username" value="{{ settings.get('pu_lastfm_username', '') }}">
-                    <label for="pu_lastfm_api_key" style="margin-top: 0.75rem;">API Key</label>
-                    <input type="password" id="pu_lastfm_api_key" name="pu_lastfm_api_key" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_lastfm_api_key') else 'Get from last.fm/api/account/create' }}">
                 </div>
-
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>libre.fm</h2>
-                    <label for="pu_librefm_username">Username <i class="info-tip">i<span class="tip-text">No API key needed — libre.fm is open and key-free for public reads.</span></i></label>
-                    <input type="text" id="pu_librefm_username" name="pu_librefm_username" placeholder="Your libre.fm username" value="{{ settings.get('pu_librefm_username', '') }}">
-                </div>
-
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>ListenBrainz</h2>
-                    <label for="pu_listenbrainz_username">Username</label>
-                    <input type="text" id="pu_listenbrainz_username" name="pu_listenbrainz_username" placeholder="Your ListenBrainz username" value="{{ settings.get('pu_listenbrainz_username', '') }}">
-                    <label for="pu_listenbrainz_token" style="margin-top: 0.75rem;">Token <span class="setup-hint">(optional)</span></label>
-                    <input type="password" id="pu_listenbrainz_token" name="pu_listenbrainz_token" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_listenbrainz_token') else 'For authenticated access' }}">
-                </div>
-
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>Navidrome / Subsonic</h2>
-                    <label for="pu_navidrome_url">Server URL</label>
-                    <input type="text" id="pu_navidrome_url" name="pu_navidrome_url" placeholder="https://navidrome.example.com" value="{{ settings.get('pu_navidrome_url', '') }}">
-                    <label for="pu_navidrome_username" style="margin-top: 0.75rem;">Username</label>
-                    <input type="text" id="pu_navidrome_username" name="pu_navidrome_username" placeholder="Your Navidrome username" value="{{ settings.get('pu_navidrome_username', '') }}">
-                    <label for="pu_navidrome_password" style="margin-top: 0.75rem;">Password</label>
-                    <input type="password" id="pu_navidrome_password" name="pu_navidrome_password" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_navidrome_password') else 'Your Navidrome password' }}">
-                </div>
-
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>Spotify</h2>
-                    <p class="setup-hint" style="margin-bottom: 0.75rem;">
-                        Create an app at <a href="https://developer.spotify.com/dashboard" target="_blank">developer.spotify.com</a>, then get a refresh token with <code>user-read-currently-playing user-read-recently-played</code> scopes.
-                        <a href="https://accounts.spotify.com/authorize?response_type=code&scope=user-read-currently-playing+user-read-recently-played" target="_blank">One-time auth guide →</a>
-                    </p>
-                    <label for="pu_spotify_client_id">Client ID</label>
-                    <input type="text" id="pu_spotify_client_id" name="pu_spotify_client_id" placeholder="Your Spotify app Client ID" value="{{ settings.get('pu_spotify_client_id', '') }}">
-                    <label for="pu_spotify_client_secret" style="margin-top: 0.75rem;">Client Secret</label>
-                    <input type="password" id="pu_spotify_client_secret" name="pu_spotify_client_secret" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_spotify_client_secret') else 'Your Spotify app Client Secret' }}">
-                    <label for="pu_spotify_refresh_token" style="margin-top: 0.75rem;">Refresh Token</label>
-                    <input type="password" id="pu_spotify_refresh_token" name="pu_spotify_refresh_token" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_spotify_refresh_token') else 'Long-lived refresh token' }}">
-                </div>
-
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>Jellyfin</h2>
-                    <p class="setup-hint" style="margin-bottom: 0.75rem;">Get an API key from Dashboard → API Keys. User ID is optional — leave blank to show any active session.</p>
-                    <label for="pu_jellyfin_url">Server URL</label>
-                    <input type="text" id="pu_jellyfin_url" name="pu_jellyfin_url" placeholder="http://192.168.1.x:8096" value="{{ settings.get('pu_jellyfin_url', '') }}">
-                    <label for="pu_jellyfin_api_key" style="margin-top: 0.75rem;">API Key</label>
-                    <input type="password" id="pu_jellyfin_api_key" name="pu_jellyfin_api_key" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_jellyfin_api_key') else 'From Dashboard → API Keys' }}">
-                    <label for="pu_jellyfin_user_id" style="margin-top: 0.75rem;">User ID <span class="setup-hint">(optional)</span></label>
-                    <input type="text" id="pu_jellyfin_user_id" name="pu_jellyfin_user_id" placeholder="Leave blank for any active session" value="{{ settings.get('pu_jellyfin_user_id', '') }}">
-                </div>
-
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>Plex</h2>
-                    <p class="setup-hint" style="margin-bottom: 0.75rem;">Find your token at plex.tv/claim or by inspecting any Plex API request (look for <code>X-Plex-Token</code>).</p>
-                    <label for="pu_plex_url">Server URL</label>
-                    <input type="text" id="pu_plex_url" name="pu_plex_url" placeholder="http://192.168.1.x:32400" value="{{ settings.get('pu_plex_url', '') }}">
-                    <label for="pu_plex_token" style="margin-top: 0.75rem;">Token</label>
-                    <input type="password" id="pu_plex_token" name="pu_plex_token" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_plex_token') else 'Your X-Plex-Token' }}">
-                </div>
-
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>Tautulli</h2>
-                    <p class="setup-hint" style="margin-bottom: 0.75rem;">Get an API key from Settings → Web Interface → API. Alternative to using Plex directly.</p>
-                    <label for="pu_tautulli_url">Server URL</label>
-                    <input type="text" id="pu_tautulli_url" name="pu_tautulli_url" placeholder="http://192.168.1.x:8181" value="{{ settings.get('pu_tautulli_url', '') }}">
-                    <label for="pu_tautulli_api_key" style="margin-top: 0.75rem;">API Key</label>
-                    <input type="password" id="pu_tautulli_api_key" name="pu_tautulli_api_key" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_tautulli_api_key') else 'From Settings → Web Interface → API' }}">
-                </div>
-
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>Letterboxd</h2>
-                    <label for="pu_letterboxd_rss_url">RSS Feed URL</label>
-                    <input type="text" id="pu_letterboxd_rss_url" name="pu_letterboxd_rss_url" placeholder="https://letterboxd.com/USERNAME/rss/" value="{{ settings.get('pu_letterboxd_rss_url', '') }}">
-                </div>
-
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>Goodreads</h2>
-                    <label for="pu_goodreads_rss_url">RSS Feed URL</label>
-                    <input type="text" id="pu_goodreads_rss_url" name="pu_goodreads_rss_url" placeholder="https://www.goodreads.com/user/updates_rss/YOUR_ID?key=YOUR_KEY" value="{{ settings.get('pu_goodreads_rss_url', '') }}">
-                </div>
-
-                <div class="settings-section" style="margin-top: 1.5rem;">
-                    <h2>Audiobookshelf</h2>
-                    <label for="pu_abs_url">Server URL</label>
-                    <input type="text" id="pu_abs_url" name="pu_abs_url" placeholder="http://192.168.1.x:13378" value="{{ settings.get('pu_abs_url', '') }}">
-                    <label for="pu_abs_token" style="margin-top: 0.75rem;">API Token</label>
-                    <input type="password" id="pu_abs_token" name="pu_abs_token" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_abs_token') else 'Get from Settings → API Keys in Audiobookshelf' }}">
-                </div>
-
-                <button type="submit" class="btn btn-sync" style="margin-top: 1.5rem;">Save Services</button>
             </form>
         </div>
 
@@ -247,7 +249,7 @@
                             <h2>Music</h2>
                         </label>
                         <div id="music-fields" style="{{ '' if settings.get('pu_music_enabled', '0') == '1' else 'display:none;' }}">
-                            <p class="setup-hint" style="margin-bottom: 0.75rem;">Uses Last.fm, ListenBrainz, or Navidrome — configured in External Services.</p>
+                            <p class="setup-hint" style="margin-bottom: 0.75rem;">Uses Last.fm, ListenBrainz, or Navidrome — configured in Connections.</p>
                             <label for="pu_music_field_name">Profile field name</label>
                             <input type="text" id="pu_music_field_name" name="pu_music_field_name" placeholder="NOW PLAYING" value="{{ settings.get('pu_music_field_name', 'NOW PLAYING') }}">
                             <label for="pu_music_interval" style="margin-top: 0.75rem;">Check interval (seconds)</label>
@@ -264,7 +266,7 @@
                             <h2>Movies</h2>
                         </label>
                         <div id="movies-fields" style="{{ '' if settings.get('pu_movies_enabled', '0') == '1' else 'display:none;' }}">
-                            <p class="setup-hint" style="margin-bottom: 0.75rem;">Uses Letterboxd RSS — configured in External Services.</p>
+                            <p class="setup-hint" style="margin-bottom: 0.75rem;">Uses Letterboxd RSS — configured in Connections.</p>
                             <label for="pu_movie_field_name">Profile field name</label>
                             <input type="text" id="pu_movie_field_name" name="pu_movie_field_name" placeholder="LAST MOVIE" value="{{ settings.get('pu_movie_field_name', 'LAST MOVIE') }}">
                             <label for="pu_movie_interval" style="margin-top: 0.75rem;">Check interval (seconds)</label>
@@ -281,7 +283,7 @@
                             <h2>Books</h2>
                         </label>
                         <div id="books-fields" style="{{ '' if settings.get('pu_books_enabled', '0') == '1' else 'display:none;' }}">
-                            <p class="setup-hint" style="margin-bottom: 0.75rem;">Uses Goodreads RSS — configured in External Services.</p>
+                            <p class="setup-hint" style="margin-bottom: 0.75rem;">Uses Goodreads RSS — configured in Connections.</p>
                             <label for="pu_book_field_name">Profile field name</label>
                             <input type="text" id="pu_book_field_name" name="pu_book_field_name" placeholder="LAST BOOK" value="{{ settings.get('pu_book_field_name', 'LAST BOOK') }}">
                             <label for="pu_book_interval" style="margin-top: 0.75rem;">Check interval (seconds)</label>

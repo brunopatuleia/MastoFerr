@@ -1162,6 +1162,13 @@ h2 {
     margin-bottom: 0.75rem;
 }
 
+.connection-disclaimer {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-style: italic;
+    margin: 0.1rem 0 0.75rem 0;
+}
+
 .settings-actions {
     display: flex;
     gap: 0.5rem;

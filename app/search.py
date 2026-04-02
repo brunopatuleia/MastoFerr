@@ -110,7 +110,7 @@ def search(
     for row in rows:
         item = dict(row)
         # HTML-escape the snippet then restore only the highlight markers as <mark> tags
-        safe = html.escape(item.get("snippet") or "")
+        safe = html.escape(item.get("snippet") or "", quote=False)
         safe = safe.replace(_MARK_S, "<mark>").replace(_MARK_E, "</mark>")
         item["snippet"] = safe
         source = sources_map.get((row["source_type"], row["source_id"]))

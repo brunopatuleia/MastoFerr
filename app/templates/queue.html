@@ -93,6 +93,11 @@
                 <span class="rel-time" data-ts="{{ entry.acted_at }}"></span>
                 {% endif %}
             </div>
+            {% if entry.action == 'dismissed' or entry.action == 'expired' %}
+            <form method="post" action="/queue/history/{{ entry.id }}/post" style="margin-top:0.5rem;">
+                <button type="submit" title="Post now" style="padding:0.25rem 0.75rem;background:var(--accent,#6364ff);color:#fff;border:none;border-radius:var(--radius);cursor:pointer;font-size:0.8rem;">&#10003; Post</button>
+            </form>
+            {% endif %}
         </div>
     </div>
     {% endfor %}

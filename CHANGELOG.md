@@ -32,6 +32,19 @@ All notable changes to Mastoferr are documented here.
 ### Fixed
 - `APP_URL` `UnboundLocalError` in profile updater — a redundant local `from app.config import APP_URL` inside a nested `if` block caused Python 3.12 to treat `APP_URL` as local to the entire method, breaking Navidrome loved-track and ABS confirmation pings
 
+## [2026-04-16]
+
+### Added
+- **Post Queue page** (`/queue`) — a dedicated page listing all pending auto-toots waiting for approval; each card shows the label, post type, toot text, time until expiry, and whether a cover image is attached; **Post** and **Dismiss** buttons handle the action and redirect back to the queue with a status message; the page auto-refreshes every 30 seconds; linked in the sidebar nav
+- Discord confirmation links now point to `/queue` instead of a single-use per-toot URL — clicking any Discord notification opens the queue where all pending posts are managed centrally
+
+### Fixed
+- **Starred track flood on LXC reboot (root cause)** — when Navidrome's `getStarred2` API returned an empty list during startup (network not yet ready, brief unavailability), `starred_ids` became `set()`; because it differed from the stored `known_ids`, the code overwrote `pu_nd_starred_ids` with `[]`; on the next successful API call every starred song appeared new, flooding Discord with confirmations; fix: the `pu_nd_starred_ids` update is now skipped when the API returns an empty result
+- **Duplicate Discord notifications on crash/restart** — if the process was killed between a Discord webhook call and the subsequent DB commit, the state was rolled back and the same notifications re-sent on restart; fixed for all three sources:
+  - **Album** — `session.posted = True` and `_save_album_session()` now happen *before* `_send_discord_confirmation`
+  - **Starred tracks** — `pu_nd_starred_ids` is committed to DB *before* the notification loop runs
+  - **ABS books** — pending notifications are collected during the loop, state sets are persisted to DB, and Discord is notified only after the commit
+
 ## [Unreleased]
 
 ### Added

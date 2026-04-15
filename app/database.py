@@ -128,6 +128,19 @@ CREATE TABLE IF NOT EXISTS posted_toots (
 
 CREATE INDEX IF NOT EXISTS idx_posted_toots_type ON posted_toots(post_type, posted_at);
 CREATE INDEX IF NOT EXISTS idx_posted_toots_hash ON posted_toots(content_hash, posted_at);
+
+CREATE TABLE IF NOT EXISTS confirmation_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT NOT NULL,
+    label TEXT NOT NULL,
+    toot_text TEXT NOT NULL,
+    post_type TEXT NOT NULL,
+    queued_at REAL NOT NULL,
+    action TEXT,
+    acted_at REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_confirmation_log_queued ON confirmation_log(queued_at DESC);
 """
 
 FTS_SCHEMA = """
@@ -840,3 +853,34 @@ def record_post(conn: sqlite3.Connection, post_type: str, content: str) -> None:
         (post_type, content_hash, now),
     )
     conn.execute("DELETE FROM posted_toots WHERE posted_at < ?", (now - _CONTENT_WINDOW,))
+
+
+# ── Confirmation log ──────────────────────────────────────────────────────────
+
+def log_confirmation_queued(
+    conn: sqlite3.Connection,
+    token: str,
+    label: str,
+    toot_text: str,
+    post_type: str,
+    queued_at: float,
+) -> None:
+    conn.execute(
+        "INSERT INTO confirmation_log (token, label, toot_text, post_type, queued_at) VALUES (?, ?, ?, ?, ?)",
+        (token, label, toot_text, post_type, queued_at),
+    )
+
+
+def update_confirmation_log(conn: sqlite3.Connection, token: str, action: str, acted_at: float) -> None:
+    conn.execute(
+        "UPDATE confirmation_log SET action=?, acted_at=? WHERE token=? AND action IS NULL",
+        (action, acted_at, token),
+    )
+
+
+def get_confirmation_log(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM confirmation_log ORDER BY queued_at DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]

@@ -28,8 +28,10 @@ from app.database import (
     can_post,
     get_all_settings,
     get_bookmarks,
+    get_confirmation_log,
     get_db,
     record_post,
+    update_confirmation_log,
     get_favorites,
     get_follower_chart_data,
     get_follower_counts,
@@ -1149,11 +1151,14 @@ async def queue_page(request: Request):
     if (auth := _require_auth(request)):
         return auth
     items = list_pending_toots()
+    with get_db() as conn:
+        history = get_confirmation_log(conn)
     status = request.query_params.get("status", "")
     label = request.query_params.get("label", "")
     return templates.TemplateResponse("queue.html", {
         "request": request,
         "items": items,
+        "history": history,
         "status": status,
         "label": label,
     })
@@ -1193,6 +1198,7 @@ async def queue_post_toot(token: str, request: Request):
         client.status_post(entry["text"], media_ids=media_ids, visibility=visibility)
         with get_db() as conn:
             record_post(conn, post_type, entry["text"])
+            update_confirmation_log(conn, token, "posted", time.time())
     except Exception as e:
         logger.error(f"queue post: failed ({entry['label']}): {e}")
         return RedirectResponse("/queue?status=error", status_code=303)
@@ -1208,6 +1214,8 @@ async def queue_dismiss_toot(token: str, request: Request):
     if (auth := _require_auth(request)):
         return auth
     pop_pending_toot(token)
+    with get_db() as conn:
+        update_confirmation_log(conn, token, "dismissed", time.time())
     return RedirectResponse("/queue?status=dismissed", status_code=303)
 
 

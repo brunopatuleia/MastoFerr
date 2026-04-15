@@ -24,7 +24,7 @@ import requests
 from mastodon import Mastodon, MastodonError
 
 from app.config import APP_URL
-from app.database import can_post, get_all_settings, get_db, get_setting, record_post, set_setting
+from app.database import can_post, get_all_settings, get_db, get_setting, log_confirmation_queued, record_post, set_setting, update_confirmation_log
 
 logger = logging.getLogger(__name__)
 
@@ -883,6 +883,7 @@ def _queue_pending_toot(
 ) -> str:
     """Store a toot for later confirmation. Returns the opaque token."""
     token = str(uuid.uuid4())
+    queued_at = time.time()
     with _pending_lock:
         _pending_toots[token] = {
             "label": label,
@@ -891,8 +892,13 @@ def _queue_pending_toot(
             "cover_mime": cover_mime,
             "cover_desc": cover_desc,
             "post_type": post_type,
-            "expires": time.time() + ttl_seconds,
+            "expires": queued_at + ttl_seconds,
         }
+    try:
+        with get_db() as conn:
+            log_confirmation_queued(conn, token, label, text, post_type, queued_at)
+    except Exception as e:
+        logger.warning(f"Failed to log confirmation queue entry: {e}")
     return token
 
 
@@ -930,6 +936,13 @@ def _expire_pending_toots() -> None:
         expired = [t for t, e in _pending_toots.items() if now > e["expires"]]
         for t in expired:
             del _pending_toots[t]
+    if expired:
+        try:
+            with get_db() as conn:
+                for token in expired:
+                    update_confirmation_log(conn, token, "expired", now)
+        except Exception as e:
+            logger.warning(f"Failed to mark expired confirmation log entries: {e}")
 
 
 def _safe_webhook_url(url: str) -> bool:

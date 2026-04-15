@@ -2,9 +2,7 @@
 {% block title %}Queue - Mastoferr{% endblock %}
 
 {% block content %}
-<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
-    <h1 style="margin:0;">Post Queue</h1>
-</div>
+<h1 style="margin:0 0 1rem;">Post Queue</h1>
 
 {% if status == "posted" %}
 <div style="background:var(--green,#2a9d5c);color:#fff;padding:0.6rem 1rem;border-radius:var(--radius);margin-bottom:1rem;">
@@ -32,27 +30,29 @@
 </div>
 {% endif %}
 
+{# ── Pending ── #}
+<h2 style="font-size:1rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin:0 0 0.6rem;">Pending</h2>
+
 {% if items %}
-<div style="display:flex;flex-direction:column;gap:0.75rem;">
+<div style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:2rem;">
     {% for item in items %}
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:0.9rem 1rem;">
+        <div style="display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
             <div style="flex:1;min-width:0;">
-                <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.4rem;">
-                    <span style="text-transform:uppercase;letter-spacing:0.05em;">{{ item.post_type }}</span>
-                    &nbsp;·&nbsp;
-                    expires in {{ (item.expires_in // 3600) }}h {{ ((item.expires_in % 3600) // 60) }}m
-                    {% if item.has_cover %}&nbsp;·&nbsp;has cover image{% endif %}
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.05em;">
+                    {{ item.post_type }}
+                    &nbsp;·&nbsp;expires in {{ (item.expires_in // 3600) }}h {{ ((item.expires_in % 3600) // 60) }}m
+                    {% if item.has_cover %}&nbsp;·&nbsp;&#128247; cover{% endif %}
                 </div>
-                <div style="font-weight:600;margin-bottom:0.5rem;">{{ item.label }}</div>
-                <pre style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:0.6rem 0.8rem;font-size:0.85rem;white-space:pre-wrap;word-break:break-word;margin:0;">{{ item.text }}</pre>
+                <div style="font-weight:600;margin-bottom:0.45rem;">{{ item.label }}</div>
+                <pre style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:0.5rem 0.75rem;font-size:0.82rem;white-space:pre-wrap;word-break:break-word;margin:0;">{{ item.text }}</pre>
             </div>
-            <div style="display:flex;gap:0.5rem;flex-shrink:0;">
+            <div style="display:flex;flex-direction:column;gap:0.4rem;flex-shrink:0;">
                 <form method="post" action="/queue/{{ item.token }}/post">
-                    <button type="submit" style="background:var(--accent,#6364ff);color:#fff;border:none;border-radius:var(--radius);padding:0.4rem 1rem;cursor:pointer;font-size:0.9rem;">Post</button>
+                    <button type="submit" title="Post" style="width:2.4rem;height:2.4rem;background:var(--accent,#6364ff);color:#fff;border:none;border-radius:var(--radius);cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;">&#10003;</button>
                 </form>
                 <form method="post" action="/queue/{{ item.token }}/dismiss">
-                    <button type="submit" style="background:var(--bg);color:var(--text-muted);border:1px solid var(--border);border-radius:var(--radius);padding:0.4rem 1rem;cursor:pointer;font-size:0.9rem;">Dismiss</button>
+                    <button type="submit" title="Dismiss" style="width:2.4rem;height:2.4rem;background:var(--bg);color:var(--text-muted);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;">&#10007;</button>
                 </form>
             </div>
         </div>
@@ -60,18 +60,61 @@
     {% endfor %}
 </div>
 {% else %}
-<div style="text-align:center;color:var(--text-muted);padding:3rem 1rem;">
-    <div style="font-size:1.5rem;margin-bottom:0.5rem;">&#10003;</div>
-    No pending posts.
+<div style="color:var(--text-muted);padding:1rem 0 2rem;font-size:0.9rem;">No pending posts.</div>
+{% endif %}
+
+{# ── History ── #}
+{% if history %}
+<h2 style="font-size:1rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin:0 0 0.6rem;">History</h2>
+<div style="display:flex;flex-direction:column;gap:0.4rem;">
+    {% for entry in history %}
+    {% set is_pending = entry.action is none %}
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:0.75rem 1rem;display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;{% if is_pending %}opacity:0.6;{% endif %}">
+        {# Status icon #}
+        <div style="flex-shrink:0;width:1.8rem;height:1.8rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.9rem;
+            {% if entry.action == 'posted' %}background:#2a9d5c22;color:#2a9d5c;
+            {% elif entry.action == 'dismissed' %}background:var(--border);color:var(--text-muted);
+            {% elif entry.action == 'expired' %}background:#e07a0022;color:#e07a00;
+            {% else %}background:var(--accent,#6364ff)22;color:var(--accent,#6364ff);{% endif %}">
+            {% if entry.action == 'posted' %}&#10003;
+            {% elif entry.action == 'dismissed' %}&#10007;
+            {% elif entry.action == 'expired' %}&#8987;
+            {% else %}&#8987;{% endif %}
+        </div>
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;margin-bottom:0.2rem;font-size:0.9rem;">{{ entry.label }}</div>
+            <pre style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:0.4rem 0.65rem;font-size:0.78rem;white-space:pre-wrap;word-break:break-word;margin:0 0 0.3rem;">{{ entry.toot_text }}</pre>
+            <div style="font-size:0.72rem;color:var(--text-muted);">
+                <span style="text-transform:uppercase;letter-spacing:0.04em;">{{ entry.post_type }}</span>
+                &nbsp;·&nbsp;queued <span class="rel-time" data-ts="{{ entry.queued_at }}"></span>
+                {% if entry.acted_at %}
+                &nbsp;·&nbsp;
+                {% if entry.action == 'posted' %}posted{% elif entry.action == 'dismissed' %}dismissed{% else %}expired{% endif %}
+                <span class="rel-time" data-ts="{{ entry.acted_at }}"></span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
 </div>
 {% endif %}
 
 <script>
-// Auto-refresh the queue every 30s so new items appear without manual reload
+// Relative timestamps
+function relTime(ts) {
+    const diff = Math.floor(Date.now() / 1000 - ts);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+}
+document.querySelectorAll('.rel-time').forEach(el => {
+    el.textContent = relTime(parseFloat(el.dataset.ts));
+});
+
+// Auto-refresh every 30s
 setTimeout(() => {
-    if (!document.querySelector('form:focus-within')) {
-        location.reload();
-    }
+    if (!document.querySelector('form:focus-within')) location.reload();
 }, 30000);
 </script>
 {% endblock %}

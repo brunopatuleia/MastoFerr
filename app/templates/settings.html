@@ -655,6 +655,31 @@ function toggleAiFields() {
     document.getElementById('ai-base-url-row').style.display = provider === 'openai-compatible' ? '' : 'none';
 }
 
+const VAR_TIPS = {
+    '%Artist%':         'Artist name\ne.g. Wardruna',
+    '%Album%':          'Album title\ne.g. Kvitravn',
+    '%Year%':           'Release year\ne.g. 2021',
+    '%AlbumLine%':      '"[year] Album" on one line\ne.g. [2021] Kvitravn',
+    '%GenreTags%':      'Up to 5 genre hashtags from Navidrome/ABS\ne.g. #Folk #NordicFolk #Viking',
+    '%GenreTags:3%':    'Up to 3 genre hashtags\ne.g. #Folk #NordicFolk',
+    '%Hashtags%':       'Your custom hashtags + genre tags combined\ne.g. #NowPlaying #Folk #Viking',
+    '%Title%':          'Track or book title\ne.g. Helvegen',
+    '%Subtitle%':       'Book subtitle — omitted if empty',
+    '%Author%':         'Author name\ne.g. Neil Gaiman',
+    '%AuthorLine%':     '"by Author" — omitted if no author',
+    '%Narrator%':       'Narrator name',
+    '%NarratorLine%':   '"narrated by Narrator" — omitted if no narrator',
+    '%YearBracketed%':  '"[year]" — omitted if no year',
+    '%ShareLink%':      'Direct link to the book in Audiobookshelf\n(requires Public URL to be set)',
+    '%GenreTag%':       'Single genre hashtag\ne.g. #Folk',
+    '%SongLink%':       'Universal music link via odesli\ne.g. https://song.link/…\n(requires MusicBrainz ID in Navidrome)',
+    '%SimilarArtists%': 'Comma-separated list of similar artists from Last.fm',
+};
+document.querySelectorAll('.var-chip').forEach(el => {
+    const tip = VAR_TIPS[el.textContent.trim()];
+    if (tip) el.title = tip;
+});
+
 function checkAlbumThreshold(input) {
     const warn = document.getElementById('album-threshold-warning');
     warn.style.display = parseInt(input.value) < 33 ? '' : 'none';

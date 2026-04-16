@@ -803,6 +803,31 @@ h2 {
     border-color: var(--accent);
 }
 
+.toot-preview {
+    margin-top: 0.5rem;
+    background: var(--bg);
+    border: 1px solid var(--accent, #6364ff);
+    border-radius: var(--radius);
+    padding: 0.6rem 0.85rem;
+    font-size: 0.82rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+    position: relative;
+}
+.toot-preview::before {
+    content: 'Preview';
+    position: absolute;
+    top: -0.55rem;
+    left: 0.75rem;
+    background: var(--bg-card);
+    padding: 0 0.3rem;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent, #6364ff);
+}
+
 .setup-hint {
     color: var(--text-muted);
     font-size: 0.85rem;

@@ -383,11 +383,12 @@
                         <div id="album-threshold-warning" style="display:none;color:#e07a00;font-size:0.8rem;margin-top:0.3rem;">&#9888; Below 33% — toots may fire after just a few tracks.</div>
                         <label for="pu_album_hashtags" style="margin-top:0.75rem;">Hashtags</label>
                         <p class="setup-hint" style="margin-bottom:0.4rem;">Space-separated hashtags added to every album toot. Genres from Navidrome are appended automatically (up to 5). Leave blank to use #NowPlaying.</p>
-                        <input type="text" id="pu_album_hashtags" name="pu_album_hashtags" placeholder="#NowPlaying" value="{{ settings.get('pu_album_hashtags', '') }}">
+                        <input type="text" id="pu_album_hashtags" name="pu_album_hashtags" placeholder="#NowPlaying" value="{{ settings.get('pu_album_hashtags', '') }}" oninput="renderPreview('pu_album_template','prev_album','pu_album_hashtags','album')">
                         <label for="pu_album_template" style="margin-top: 0.75rem;">Post template</label>
                         <p class="setup-hint" style="margin-bottom:0.4rem;">Customise the toot layout. Click a variable chip to insert it at the cursor. Leave blank for the default format.</p>
                         <div class="template-vars">{% for v in ['%Artist%','%Album%','%Year%','%AlbumLine%','%GenreTags%','%GenreTags:3%','%Hashtags%'] %}<span class="var-chip" onclick="insertVar('pu_album_template','{{ v }}')">{{ v }}</span>{% endfor %}</div>
-                        <textarea id="pu_album_template" name="pu_album_template" rows="4" placeholder="%Artist%&#10;%AlbumLine%&#10;&#10;%Hashtags%">{{ settings.get('pu_album_template', '') }}</textarea>
+                        <textarea id="pu_album_template" name="pu_album_template" rows="4" placeholder="%Artist%&#10;%AlbumLine%&#10;&#10;%Hashtags%" oninput="renderPreview('pu_album_template','prev_album','pu_album_hashtags','album')">{{ settings.get('pu_album_template', '') }}</textarea>
+                        <div id="prev_album" class="toot-preview" style="display:none;"></div>
                     </div>
                 </div>
 
@@ -400,7 +401,8 @@
                         <label for="pu_star_template">Post template</label>
                         <p class="setup-hint" style="margin-bottom:0.4rem;">Customise the toot layout. Click a variable chip to insert it at the cursor. Leave blank for the default format. %SongLink% fetches a universal music link via odesli — requires a MusicBrainz ID set in Navidrome.</p>
                         <div class="template-vars">{% for v in ['%Artist%','%Title%','%Album%','%Year%','%GenreTag%','%SongLink%','%SimilarArtists%','%Hashtags%'] %}<span class="var-chip" onclick="insertVar('pu_star_template','{{ v }}')">{{ v }}</span>{% endfor %}</div>
-                        <textarea id="pu_star_template" name="pu_star_template" rows="4" placeholder="%Artist% - %Title%&#10;&#10;%Hashtags%">{{ settings.get('pu_star_template', '') }}</textarea>
+                        <textarea id="pu_star_template" name="pu_star_template" rows="4" placeholder="%Artist% - %Title%&#10;&#10;%Hashtags%" oninput="renderPreview('pu_star_template','prev_star',null,'star')">{{ settings.get('pu_star_template', '') }}</textarea>
+                        <div id="prev_star" class="toot-preview" style="display:none;"></div>
                     </div>
                 </div>
 
@@ -412,7 +414,7 @@
                     <div id="abs-fields" style="{{ '' if settings.get('pu_abs_enabled', '0') == '1' else 'display:none;' }}">
                         <label for="pu_abs_hashtags">Hashtags</label>
                         <p class="setup-hint" style="margin-bottom:0.4rem;">Space-separated hashtags added to every toot. Genres from Audiobookshelf are appended automatically (up to 5). Leave blank to use #NowReading #Audiobooks #Books.</p>
-                        <input type="text" id="pu_abs_hashtags" name="pu_abs_hashtags" placeholder="#NowReading #Audiobooks #Books" value="{{ settings.get('pu_abs_hashtags', '') }}">
+                        <input type="text" id="pu_abs_hashtags" name="pu_abs_hashtags" placeholder="#NowReading #Audiobooks #Books" value="{{ settings.get('pu_abs_hashtags', '') }}" oninput="renderPreview('pu_abs_template','prev_abs','pu_abs_hashtags','abs')">
                         <label for="pu_abs_interval" style="margin-top: 0.75rem;">Check interval (seconds)</label>
                         <p class="setup-hint" style="margin-bottom:0.4rem;">How often the app polls Audiobookshelf for new in-progress books. Minimum 60. Default: 900 (15 min).</p>
                         <input type="number" id="pu_abs_interval" name="pu_abs_interval" min="60" placeholder="900" value="{{ settings.get('pu_abs_interval', '900') }}">
@@ -425,7 +427,8 @@
                         <label for="pu_abs_template" style="margin-top: 0.75rem;">Post template</label>
                         <p class="setup-hint" style="margin-bottom:0.4rem;">Customise the toot layout. Click a variable chip to insert it at the cursor. Leave blank for the default format. Optional variables (e.g. %Subtitle%) are removed automatically if the data is missing.</p>
                         <div class="template-vars">{% for v in ['%Title%','%Subtitle%','%Author%','%AuthorLine%','%Narrator%','%NarratorLine%','%Year%','%YearBracketed%','%ShareLink%','%GenreTags%','%GenreTags:3%','%Hashtags%'] %}<span class="var-chip" onclick="insertVar('pu_abs_template','{{ v }}')">{{ v }}</span>{% endfor %}</div>
-                        <textarea id="pu_abs_template" name="pu_abs_template" rows="5" placeholder="%Title%&#10;%Subtitle%&#10;%AuthorLine%&#10;%NarratorLine%&#10;%YearBracketed%&#10;&#10;%Hashtags%">{{ settings.get('pu_abs_template', '') }}</textarea>
+                        <textarea id="pu_abs_template" name="pu_abs_template" rows="5" placeholder="%Title%&#10;%Subtitle%&#10;%AuthorLine%&#10;%NarratorLine%&#10;%YearBracketed%&#10;&#10;%Hashtags%" oninput="renderPreview('pu_abs_template','prev_abs','pu_abs_hashtags','abs')">{{ settings.get('pu_abs_template', '') }}</textarea>
+                        <div id="prev_abs" class="toot-preview" style="display:none;"></div>
                     </div>
                 </div>
 
@@ -437,11 +440,12 @@
                     <div id="abs-finished-fields" style="{{ '' if settings.get('pu_abs_finished_enabled', '0') == '1' else 'display:none;' }}">
                         <label for="pu_abs_finished_hashtags">Hashtags</label>
                         <p class="setup-hint" style="margin-bottom:0.4rem;">Space-separated hashtags for finished book toots. Genres are appended automatically (up to 5). Leave blank to use #FinishedReading #Audiobooks #Books.</p>
-                        <input type="text" id="pu_abs_finished_hashtags" name="pu_abs_finished_hashtags" placeholder="#FinishedReading #Audiobooks #Books" value="{{ settings.get('pu_abs_finished_hashtags', '') }}">
+                        <input type="text" id="pu_abs_finished_hashtags" name="pu_abs_finished_hashtags" placeholder="#FinishedReading #Audiobooks #Books" value="{{ settings.get('pu_abs_finished_hashtags', '') }}" oninput="renderPreview('pu_abs_finished_template','prev_abs_fin','pu_abs_finished_hashtags','abs_fin')">
                         <label for="pu_abs_finished_template" style="margin-top: 0.75rem;">Post template</label>
                         <p class="setup-hint" style="margin-bottom:0.4rem;">Customise the toot layout. Click a variable chip to insert it at the cursor. Leave blank for the default format. %Title% is pre-filled as "Just finished: Title".</p>
                         <div class="template-vars">{% for v in ['%Title%','%Subtitle%','%Author%','%AuthorLine%','%Narrator%','%NarratorLine%','%Year%','%YearBracketed%','%ShareLink%','%GenreTags%','%GenreTags:3%','%Hashtags%'] %}<span class="var-chip" onclick="insertVar('pu_abs_finished_template','{{ v }}')">{{ v }}</span>{% endfor %}</div>
-                        <textarea id="pu_abs_finished_template" name="pu_abs_finished_template" rows="5" placeholder="%Title%&#10;%Subtitle%&#10;%AuthorLine%&#10;%NarratorLine%&#10;%YearBracketed%&#10;&#10;%Hashtags%">{{ settings.get('pu_abs_finished_template', '') }}</textarea>
+                        <textarea id="pu_abs_finished_template" name="pu_abs_finished_template" rows="5" placeholder="%Title%&#10;%Subtitle%&#10;%AuthorLine%&#10;%NarratorLine%&#10;%YearBracketed%&#10;&#10;%Hashtags%" oninput="renderPreview('pu_abs_finished_template','prev_abs_fin','pu_abs_finished_hashtags','abs_fin')">{{ settings.get('pu_abs_finished_template', '') }}</textarea>
+                        <div id="prev_abs_fin" class="toot-preview" style="display:none;"></div>
                     </div>
                 </div>
 
@@ -655,6 +659,71 @@ function toggleAiFields() {
     document.getElementById('ai-base-url-row').style.display = provider === 'openai-compatible' ? '' : 'none';
 }
 
+const DEMO = {
+    album: {
+        '%Artist%': 'Wardruna', '%Album%': 'Kvitravn', '%Year%': '2021',
+        '%AlbumLine%': '[2021] Kvitravn',
+        '%GenreTags%': '#Folk #NordicFolk #Viking #Pagan #Ambient',
+        '%GenreTags:3%': '#Folk #NordicFolk #Viking',
+        '%Hashtags%': '{hashtags} #Folk #NordicFolk #Viking',
+    },
+    star: {
+        '%Artist%': 'Wardruna', '%Title%': 'Helvegen', '%Album%': 'Runaljod – Yggdrasil',
+        '%Year%': '2013', '%GenreTag%': '#Folk',
+        '%SongLink%': 'https://song.link/s/5abc123',
+        '%SimilarArtists%': 'Heilung, Danheim, Skáld',
+        '%Hashtags%': '{hashtags} #Folk',
+    },
+    abs: {
+        '%Title%': 'Norse Mythology', '%Subtitle%': 'A Retelling',
+        '%Author%': 'Neil Gaiman', '%AuthorLine%': 'by Neil Gaiman',
+        '%Narrator%': 'Neil Gaiman', '%NarratorLine%': 'narrated by Neil Gaiman',
+        '%Year%': '2017', '%YearBracketed%': '[2017]',
+        '%ShareLink%': 'https://abs.example.com/share/abc123',
+        '%GenreTags%': '#Mythology #Fantasy #Fiction #History #Classic',
+        '%GenreTags:3%': '#Mythology #Fantasy #Fiction',
+        '%Hashtags%': '{hashtags} #Mythology #Fantasy',
+    },
+    abs_fin: {
+        '%Title%': 'Just finished: Norse Mythology', '%Subtitle%': 'A Retelling',
+        '%Author%': 'Neil Gaiman', '%AuthorLine%': 'by Neil Gaiman',
+        '%Narrator%': 'Neil Gaiman', '%NarratorLine%': 'narrated by Neil Gaiman',
+        '%Year%': '2017', '%YearBracketed%': '[2017]',
+        '%ShareLink%': 'https://abs.example.com/share/abc123',
+        '%GenreTags%': '#Mythology #Fantasy #Fiction #History #Classic',
+        '%GenreTags:3%': '#Mythology #Fantasy #Fiction',
+        '%Hashtags%': '{hashtags} #Mythology #Fantasy',
+    },
+};
+
+function renderPreview(taId, previewId, hashtagsFieldId, demoKey) {
+    const ta = document.getElementById(taId);
+    const preview = document.getElementById(previewId);
+    const tpl = ta.value.trim();
+    if (!tpl) { preview.style.display = 'none'; return; }
+    const demos = Object.assign({}, DEMO[demoKey]);
+    if (hashtagsFieldId) {
+        const htField = document.getElementById(hashtagsFieldId);
+        const ht = htField ? htField.value.trim() : '';
+        for (const k in demos) {
+            demos[k] = demos[k].replace('{hashtags}', ht || '#NowPlaying');
+        }
+    }
+    let out = tpl;
+    for (const [k, v] of Object.entries(demos)) out = out.split(k).join(v);
+    preview.textContent = out;
+    preview.style.display = '';
+}
+
+// Init previews for any pre-filled templates on page load
+document.addEventListener('DOMContentLoaded', () => {
+    [['pu_album_template','prev_album','pu_album_hashtags','album'],
+     ['pu_star_template','prev_star',null,'star'],
+     ['pu_abs_template','prev_abs','pu_abs_hashtags','abs'],
+     ['pu_abs_finished_template','prev_abs_fin','pu_abs_finished_hashtags','abs_fin'],
+    ].forEach(([ta, pv, ht, key]) => renderPreview(ta, pv, ht, key));
+});
+
 const VAR_TIPS = {
     '%Artist%':         'Artist name\ne.g. Wardruna',
     '%Album%':          'Album title\ne.g. Kvitravn',
@@ -694,6 +763,13 @@ function toggleSection(id, show) {
     document.getElementById(id).style.display = show ? '' : 'none';
 }
 
+const TA_PREVIEW_MAP = {
+    'pu_album_template':        ['prev_album', 'pu_album_hashtags', 'album'],
+    'pu_star_template':         ['prev_star', null, 'star'],
+    'pu_abs_template':          ['prev_abs', 'pu_abs_hashtags', 'abs'],
+    'pu_abs_finished_template': ['prev_abs_fin', 'pu_abs_finished_hashtags', 'abs_fin'],
+};
+
 function insertVar(taId, variable) {
     const ta = document.getElementById(taId);
     const start = ta.selectionStart;
@@ -701,6 +777,8 @@ function insertVar(taId, variable) {
     ta.value = ta.value.substring(0, start) + variable + ta.value.substring(end);
     ta.selectionStart = ta.selectionEnd = start + variable.length;
     ta.focus();
+    const m = TA_PREVIEW_MAP[taId];
+    if (m) renderPreview(taId, m[0], m[1], m[2]);
 }
 
 function toggleProfileUpdater(action) {

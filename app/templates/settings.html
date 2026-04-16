@@ -716,13 +716,11 @@ function renderPreview(taId, previewId, hashtagsFieldId, demoKey) {
 }
 
 // Init previews for any pre-filled templates on page load
-document.addEventListener('DOMContentLoaded', () => {
-    [['pu_album_template','prev_album','pu_album_hashtags','album'],
-     ['pu_star_template','prev_star',null,'star'],
-     ['pu_abs_template','prev_abs','pu_abs_hashtags','abs'],
-     ['pu_abs_finished_template','prev_abs_fin','pu_abs_finished_hashtags','abs_fin'],
-    ].forEach(([ta, pv, ht, key]) => renderPreview(ta, pv, ht, key));
-});
+[['pu_album_template','prev_album','pu_album_hashtags','album'],
+ ['pu_star_template','prev_star',null,'star'],
+ ['pu_abs_template','prev_abs','pu_abs_hashtags','abs'],
+ ['pu_abs_finished_template','prev_abs_fin','pu_abs_finished_hashtags','abs_fin'],
+].forEach(([ta, pv, ht, key]) => renderPreview(ta, pv, ht, key));
 
 const VAR_TIPS = {
     '%Artist%':         'Artist name\ne.g. Wardruna',

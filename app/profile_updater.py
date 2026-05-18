@@ -377,22 +377,49 @@ class LetterboxdClient:
     def __init__(self, rss_url: str):
         self.rss_url = rss_url
 
+    @staticmethod
+    def _entry_value(entry: dict, *keys: str) -> str:
+        """Read feedparser-normalized Letterboxd namespace values."""
+        wanted = {k.lower().replace(":", "_") for k in keys}
+        for key, value in entry.items():
+            normalized = key.lower().replace(":", "_")
+            if normalized in wanted or any(normalized.endswith(f"_{w}") for w in wanted):
+                if isinstance(value, dict):
+                    value = value.get("#") or value.get("value") or value.get("text") or ""
+                return str(value).strip()
+        return ""
+
+    @staticmethod
+    def _parse_rating(value: str) -> float | None:
+        if not value:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            logger.warning(f"Letterboxd RSS: could not parse rating value {value!r}")
+            return None
+
     def get_recent_movie(self) -> Optional[dict]:
         try:
             feed = feedparser.parse(self.rss_url)
             if not feed.entries:
                 return None
             entry = feed.entries[0]
-            film_title = film_year = None
-            rating = None
-            for key, value in entry.items():
-                if "filmtitle" in key.lower():
-                    film_title = value
-                elif "filmyear" in key.lower():
-                    film_year = value
-                elif "memberrating" in key.lower():
-                    rating = float(value)
+            film_title = self._entry_value(entry, "letterboxd_filmtitle", "filmtitle")
+            film_year = self._entry_value(entry, "letterboxd_filmyear", "filmyear")
+            rating = self._parse_rating(self._entry_value(entry, "letterboxd_memberrating", "memberrating"))
+
+            # Fallback for malformed namespace parsing: Letterboxd titles are
+            # commonly "Film Title, YYYY - ..." or "Film Title, YYYY".
             if not film_title:
+                title = str(entry.get("title", "")).strip()
+                match = re.match(r"^(.+?),\s*(\d{4})(?:\s+-.*)?$", title)
+                if match:
+                    film_title = match.group(1).strip()
+                    film_year = film_year or match.group(2)
+
+            if not film_title:
+                logger.warning("Letterboxd RSS: latest entry did not include a film title")
                 return None
             return {"title": film_title, "year": film_year or "Unknown", "rating": rating}
         except Exception as e:

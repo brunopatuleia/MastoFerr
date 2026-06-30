@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Confirm Toot - Mastoferr{% endblock %}
+
+{% block content %}
+<div class="setup-page">
+    <div class="setup-card">
+        <h1>Confirm Toot</h1>
+        <p class="setup-desc">Review this queued toot before posting it to Mastodon.</p>
+
+        <div class="settings-section" style="margin:1rem 0;">
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.05em;">
+                {{ entry.post_type }}
+            </div>
+            <div style="font-weight:600;margin-bottom:0.45rem;">{{ entry.label }}</div>
+            <pre style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:0.75rem;font-size:0.9rem;white-space:pre-wrap;word-break:break-word;margin:0;">{{ entry.text }}</pre>
+        </div>
+
+        <form method="post" action="/confirm-toot/{{ token }}" class="setup-form">
+            <button type="submit" class="btn btn-sync">Post to Mastodon</button>
+            <a href="/queue" class="btn">Open Queue</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

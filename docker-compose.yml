@@ -1,10 +1,10 @@
 services:
   mastoferr:
-    build: .
+    image: ghcr.io/brunopatuleia/mastoferr:main
     container_name: mastoferr
     restart: unless-stopped
     ports:
-      - "6886:8080"
+      - "127.0.0.1:6886:8080"
     env_file:
       - .env
     volumes:
@@ -16,3 +16,22 @@ services:
           cpus: "1.0"
         reservations:
           memory: 128M
+
+  mastoferr-beta:
+    image: ghcr.io/brunopatuleia/mastoferr:beta
+    container_name: mastoferr_beta
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6887:8080"
+    environment:
+      - APP_ENV=beta
+      - APP_URL=http://localhost:6887
+    env_file:
+      - .env
+    volumes:
+      - ./data-beta:/app/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"

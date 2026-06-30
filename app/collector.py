@@ -1,5 +1,6 @@
 import logging
 import os
+import ipaddress
 import re
 import socket
 import time
@@ -46,24 +47,47 @@ def get_client() -> Mastodon:
 _BLOCKED_HOSTS = {"169.254.169.254", "169.254.170.2", "metadata.google.internal"}
 
 
+def _host_resolves_safely(hostname: str) -> bool:
+    if hostname in _BLOCKED_HOSTS:
+        return False
+    try:
+        for info in socket.getaddrinfo(hostname, None):
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_unspecified:
+                return False
+    except (socket.gaierror, ValueError):
+        return False
+    return True
+
+
 def _safe_media_url(url: str) -> bool:
-    """Block loopback and cloud metadata URLs before downloading media."""
+    """Block loopback, link-local, and cloud metadata URLs before downloading media."""
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
             return False
         hostname = (parsed.hostname or "").lower()
-        if hostname in _BLOCKED_HOSTS:
-            return False
-        try:
-            ip = socket.gethostbyname(hostname)
-            if ip.startswith("127.") or ip in ("0.0.0.0", "::1"):
-                return False
-        except socket.gaierror:
-            return False
-        return True
+        return bool(hostname and _host_resolves_safely(hostname))
     except Exception:
         return False
+
+
+def _get_safe_stream(url: str, timeout: int = 30, max_redirects: int = 3) -> requests.Response:
+    current = url
+    for _ in range(max_redirects + 1):
+        if not _safe_media_url(current):
+            raise ValueError("unsafe media URL")
+        resp = requests.get(current, timeout=timeout, stream=True, allow_redirects=False)
+        if resp.is_redirect:
+            location = resp.headers.get("Location", "")
+            resp.close()
+            if not location:
+                raise ValueError("redirect without location")
+            current = requests.compat.urljoin(current, location)
+            continue
+        resp.raise_for_status()
+        return resp
+    raise ValueError("too many redirects")
 
 
 _SAFE_MEDIA_EXTS = {
@@ -128,11 +152,10 @@ def _download_file(url: str, dest: Path):
     """Download a file from URL to local path."""
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        resp = requests.get(url, timeout=30, stream=True)
-        resp.raise_for_status()
-        with open(dest, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=8192):
-                f.write(chunk)
+        with _get_safe_stream(url) as resp:
+            with open(dest, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
     except Exception:
         logger.debug(f"Failed to download {url}")
 

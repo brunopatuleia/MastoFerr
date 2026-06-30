@@ -7,6 +7,7 @@ Adapted from the standalone mastodon_profile_update project.
 
 import base64
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -33,26 +34,49 @@ import socket
 _BLOCKED_HOSTS = {"169.254.169.254", "169.254.170.2", "metadata.google.internal"}
 
 
+def _host_resolves_safely(hostname: str) -> bool:
+    if hostname in _BLOCKED_HOSTS:
+        return False
+    try:
+        for info in socket.getaddrinfo(hostname, None):
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_unspecified:
+                return False
+    except (socket.gaierror, ValueError):
+        return False
+    return True
+
+
 def _safe_url(url: str) -> bool:
-    """Block cloud metadata endpoints and loopback addresses. Private IPs allowed (homelab)."""
+    """Block metadata, loopback, and link-local endpoints. Private IPs are allowed for homelab use."""
     from urllib.parse import urlparse
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
             return False
         hostname = (parsed.hostname or "").lower()
-        if hostname in _BLOCKED_HOSTS:
-            return False
-        # Block loopback / unspecified addresses by resolving the hostname
-        try:
-            ip = socket.gethostbyname(hostname)
-            if ip.startswith("127.") or ip in ("0.0.0.0", "::1"):
-                return False
-        except socket.gaierror:
-            return False
-        return True
+        return bool(hostname and _host_resolves_safely(hostname))
     except Exception:
         return False
+
+
+def _safe_request(method: str, url: str, max_redirects: int = 3, **kwargs) -> requests.Response:
+    """Request a user-configured URL, validating each redirect hop."""
+    current = url
+    kwargs.pop("allow_redirects", None)
+    for _ in range(max_redirects + 1):
+        if not _safe_url(current):
+            raise ValueError("unsafe URL")
+        resp = requests.request(method, current, allow_redirects=False, **kwargs)
+        if resp.is_redirect:
+            location = resp.headers.get("Location", "")
+            resp.close()
+            if not location:
+                raise ValueError("redirect without location")
+            current = requests.compat.urljoin(current, location)
+            continue
+        return resp
+    raise ValueError("too many redirects")
 
 # ── Media source clients ─────────────────────────────────────────
 
@@ -227,7 +251,7 @@ class NavidromeClient:
         params = self._auth_params()
         params["id"] = album_id
         try:
-            resp = requests.get(self._api_url("getAlbum"), params=params, timeout=10)
+            resp = _safe_request("GET", self._api_url("getAlbum"), params=params, timeout=10)
             resp.raise_for_status()
             data = self._parse_response(resp)
             if not data:
@@ -265,7 +289,7 @@ class NavidromeClient:
         params = self._auth_params()
         params["id"] = cover_art_id
         try:
-            resp = requests.get(self._api_url("getCoverArt"), params=params, timeout=15)
+            resp = _safe_request("GET", self._api_url("getCoverArt"), params=params, timeout=15)
             resp.raise_for_status()
             return resp.content
         except Exception as e:
@@ -278,7 +302,7 @@ class NavidromeClient:
         params = self._auth_params()
         params.update({"type": "recent", "size": "500"})
         try:
-            resp = requests.get(self._api_url("getAlbumList2"), params=params, timeout=15)
+            resp = _safe_request("GET", self._api_url("getAlbumList2"), params=params, timeout=15)
             resp.raise_for_status()
             data = self._parse_response(resp)
             if not data:
@@ -310,7 +334,7 @@ class NavidromeClient:
         """Return all currently starred/loved songs from Navidrome."""
         try:
             params = self._auth_params()
-            resp = requests.get(self._api_url("getStarred2"), params=params, timeout=10)
+            resp = _safe_request("GET", self._api_url("getStarred2"), params=params, timeout=10)
             data = self._parse_response(resp)
             if not data:
                 return []
@@ -326,7 +350,7 @@ class NavidromeClient:
         try:
             # Try getNowPlaying first
             params = self._auth_params()
-            resp = requests.get(self._api_url("getNowPlaying"), params=params, timeout=10)
+            resp = _safe_request("GET", self._api_url("getNowPlaying"), params=params, timeout=10)
             resp.raise_for_status()
             data = self._parse_response(resp)
             if data is None:
@@ -348,7 +372,7 @@ class NavidromeClient:
 
             # Nothing playing now — try getPlayQueue for last played
             params = self._auth_params()
-            resp = requests.get(self._api_url("getPlayQueue"), params=params, timeout=10)
+            resp = _safe_request("GET", self._api_url("getPlayQueue"), params=params, timeout=10)
             resp.raise_for_status()
             data = self._parse_response(resp)
             if data:
@@ -401,7 +425,9 @@ class LetterboxdClient:
 
     def get_recent_movie(self) -> Optional[dict]:
         try:
-            feed = feedparser.parse(self.rss_url)
+            resp = _safe_request("GET", self.rss_url, timeout=10)
+            resp.raise_for_status()
+            feed = feedparser.parse(resp.content)
             if not feed.entries:
                 return None
             entry = feed.entries[0]
@@ -441,7 +467,9 @@ class GoodreadsClient:
 
     def get_finished_book(self) -> Optional[dict]:
         try:
-            feed = feedparser.parse(self.rss_url)
+            resp = _safe_request("GET", self.rss_url, timeout=10)
+            resp.raise_for_status()
+            feed = feedparser.parse(resp.content)
             if not feed.entries:
                 return None
             for entry in feed.entries:
@@ -465,7 +493,9 @@ class GoodreadsClient:
         before posting so events go out in chronological order.
         """
         try:
-            feed = feedparser.parse(self.rss_url)
+            resp = _safe_request("GET", self.rss_url, timeout=10)
+            resp.raise_for_status()
+            feed = feedparser.parse(resp.content)
             if not feed.entries:
                 return []
             events = []
@@ -520,7 +550,8 @@ class AudiobookshelfClient:
     def get_in_progress_books(self) -> list[dict]:
         """Return all books currently in progress."""
         try:
-            resp = requests.get(
+            resp = _safe_request(
+                "GET",
                 f"{self.server_url}/api/me/items-in-progress",
                 headers=self._headers,
                 timeout=10,
@@ -539,7 +570,8 @@ class AudiobookshelfClient:
     def get_book_metadata(self, library_item_id: str) -> dict | None:
         """Fetch title, author, year, and genres for a library item."""
         try:
-            resp = requests.get(
+            resp = _safe_request(
+                "GET",
                 f"{self.server_url}/api/items/{library_item_id}",
                 headers=self._headers,
                 timeout=10,
@@ -565,7 +597,8 @@ class AudiobookshelfClient:
     def get_cover_bytes(self, library_item_id: str) -> bytes | None:
         """Download the book cover image."""
         try:
-            resp = requests.get(
+            resp = _safe_request(
+                "GET",
                 f"{self.server_url}/api/items/{library_item_id}/cover",
                 headers=self._headers,
                 timeout=15,
@@ -586,7 +619,8 @@ class AudiobookshelfClient:
             if expiry_hours and expiry_hours > 0:
                 expires_at = int((time.time() + expiry_hours * 3600) * 1000)
                 body["expiresAt"] = expires_at
-            resp = requests.post(
+            resp = _safe_request(
+                "POST",
                 f"{self.server_url}/api/share/mediaProgress",
                 headers=self._headers,
                 json=body,
@@ -601,7 +635,8 @@ class AudiobookshelfClient:
     def get_user_progress(self, library_item_id: str) -> dict | None:
         """Fetch user progress for a library item (includes isFinished)."""
         try:
-            resp = requests.get(
+            resp = _safe_request(
+                "GET",
                 f"{self.server_url}/api/me/progress/{library_item_id}",
                 headers=self._headers,
                 timeout=10,
@@ -612,6 +647,31 @@ class AudiobookshelfClient:
             return resp.json()
         except Exception as e:
             logger.error(f"Audiobookshelf progress check failed ({library_item_id}): {e}")
+            return None
+
+
+class HomeAssistantClient:
+    def __init__(self, url: str, token: str, entity_id: str):
+        self.url = url.rstrip("/")
+        self.token = token
+        self.entity_id = entity_id
+        self._headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    def get_state(self) -> dict | None:
+        try:
+            resp = _safe_request(
+                "GET",
+                f"{self.url}/api/states/{self.entity_id}",
+                headers=self._headers,
+                timeout=10,
+            )
+            if resp.status_code == 404:
+                logger.warning(f"Home Assistant entity not found: {self.entity_id}")
+                return None
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.error(f"Home Assistant API failed for {self.entity_id}: {e}")
             return None
 
 
@@ -689,7 +749,7 @@ class JellyfinClient:
 
     def get_recent_track(self) -> Optional[dict]:
         try:
-            resp = requests.get(f"{self.server_url}/Sessions", headers=self._headers, timeout=10)
+            resp = _safe_request("GET", f"{self.server_url}/Sessions", headers=self._headers, timeout=10)
             resp.raise_for_status()
             for session in resp.json():
                 item = session.get("NowPlayingItem")
@@ -717,7 +777,7 @@ class PlexClient:
 
     def get_recent_track(self) -> Optional[dict]:
         try:
-            resp = requests.get(f"{self.server_url}/status/sessions", headers=self._headers, timeout=10)
+            resp = _safe_request("GET", f"{self.server_url}/status/sessions", headers=self._headers, timeout=10)
             resp.raise_for_status()
             items = resp.json().get("MediaContainer", {}).get("Metadata", [])
             for item in items:
@@ -740,7 +800,8 @@ class TautulliClient:
 
     def get_recent_track(self) -> Optional[dict]:
         try:
-            resp = requests.get(
+            resp = _safe_request(
+                "GET",
                 f"{self.server_url}/api/v2",
                 params={"apikey": self.api_key, "cmd": "get_activity"},
                 timeout=10,
@@ -938,6 +999,16 @@ def pop_pending_toot(token: str) -> dict | None:
     return entry
 
 
+def get_pending_toot(token: str) -> dict | None:
+    """Return a pending toot entry without consuming it, or None if missing/expired."""
+    now = time.time()
+    with _pending_lock:
+        entry = _pending_toots.get(token)
+        if not entry or now > entry["expires"]:
+            return None
+        return dict(entry)
+
+
 def list_pending_toots() -> list[dict]:
     """Return all non-expired pending toots for the queue UI (read-only)."""
     now = time.time()
@@ -973,20 +1044,14 @@ def _expire_pending_toots() -> None:
 
 
 def _safe_webhook_url(url: str) -> bool:
-    """Validate a webhook URL — must be http/https and not resolve to loopback or metadata endpoints."""
+    """Validate a webhook URL — must be http/https and not resolve to loopback, link-local, or metadata endpoints."""
     from urllib.parse import urlparse
-    _BLOCKED = {"169.254.169.254", "169.254.170.2", "metadata.google.internal"}
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
             return False
         hostname = (parsed.hostname or "").lower()
-        if hostname in _BLOCKED:
-            return False
-        ip = socket.gethostbyname(hostname)
-        if ip.startswith("127.") or ip in ("0.0.0.0", "::1"):
-            return False
-        return True
+        return bool(hostname and _host_resolves_safely(hostname))
     except Exception:
         return False
 
@@ -1007,7 +1072,8 @@ def _send_discord_confirmation(
         f"[Confirm and post]({confirm_url})"
     )
     try:
-        resp = requests.post(
+        resp = _safe_request(
+            "POST",
             webhook_url,
             json={"content": content},
             timeout=10,
@@ -1200,6 +1266,7 @@ DEFAULTS = {
     "pu_music_field_name": "NOW PLAYING",
     "pu_movie_field_name": "LAST MOVIE",
     "pu_book_field_name": "LAST BOOK",
+    "pu_workout_field_name": "LAST WORKOUT",
     "pu_music_interval": "60",
     "pu_movie_interval": "21600",
     "pu_book_interval": "21600",
@@ -1231,15 +1298,18 @@ class ProfileUpdater:
                 self.last_track_info: str | None = get_setting(conn, "pu_last_track_info")
                 self.last_movie_info: str | None = get_setting(conn, "pu_last_movie_info")
                 self.last_book_info: str | None = get_setting(conn, "pu_last_book_info")
+                self.last_workout_info: str | None = get_setting(conn, "pu_last_workout_info")
         except Exception:
             self.last_track_info = None
             self.last_movie_info = None
             self.last_book_info = None
+            self.last_workout_info = None
         self.last_custom_info: str | None = None
         self._cached_fields: list | None = None  # cached from account_verify_credentials
         self.last_music_update: float = 0
         self.last_movie_update: float = 0
         self.last_book_update: float = 0
+        self.last_workout_update: float = 0
         self.last_abs_update: float = 0
         self._album_session: dict | None = self._load_album_session()
         self.error: str | None = None
@@ -1274,10 +1344,12 @@ class ProfileUpdater:
             "last_track": self.last_track_info,
             "last_movie": self.last_movie_info,
             "last_book": self.last_book_info,
+            "last_workout": self.last_workout_info,
             "last_custom": self.last_custom_info,
             "last_music_update": self.last_music_update,
             "last_movie_update": self.last_movie_update,
             "last_book_update": self.last_book_update,
+            "last_workout_update": self.last_workout_update,
             "error": self.error,
         }
 
@@ -1358,7 +1430,16 @@ class ProfileUpdater:
             if abs_url and abs_token and _safe_url(abs_url):
                 audiobookshelf = AudiobookshelfClient(abs_url, abs_token)
 
-        return music_clients, letterboxd, goodreads, audiobookshelf
+        # Home Assistant
+        home_assistant = None
+        if settings.get("pu_workout_enabled") == "1":
+            ha_url = settings.get("pu_ha_url", "").strip()
+            ha_token = settings.get("pu_ha_token", "").strip()
+            ha_entity = settings.get("pu_ha_entity_id", "").strip()
+            if ha_url and ha_token and ha_entity and _safe_url(ha_url):
+                home_assistant = HomeAssistantClient(ha_url, ha_token, ha_entity)
+
+        return music_clients, letterboxd, goodreads, audiobookshelf, home_assistant
 
     def _get_mastodon_client(self, settings: dict) -> Mastodon | None:
         instance = settings.get("instance_url")
@@ -1465,7 +1546,7 @@ class ProfileUpdater:
             # Build ordered managed fields based on pu_field_order
             with get_db() as conn:
                 settings = get_all_settings(conn)
-            order_str = settings.get("pu_field_order", "music,movies,books,custom")
+            order_str = settings.get("pu_field_order", "music,movies,books,workout,custom")
             ordered_managed = []
             for key in order_str.split(","):
                 key = key.strip()
@@ -1476,6 +1557,8 @@ class ProfileUpdater:
                     field_name = _s(settings, "pu_movie_field_name")
                 elif key == "books":
                     field_name = _s(settings, "pu_book_field_name")
+                elif key == "workout":
+                    field_name = _s(settings, "pu_workout_field_name")
                 elif key == "custom":
                     field_name = settings.get("pu_custom_field_name", "").strip()
                 if field_name and field_name in managed_fields:
@@ -1518,13 +1601,32 @@ class ProfileUpdater:
         rating_str = f" - {stars}" if stars else ""
         return f"{emoji}{book['title']} by {book['author']}{rating_str}"
 
+    def _format_workout(self, ha_data: dict | None, settings: dict) -> str | None:
+        if not ha_data:
+            return None
+        state = ha_data.get("state", "")
+        attrs = ha_data.get("attributes", {})
+        template = settings.get("pu_ha_template", "").strip()
+        if template:
+            substitutions = {"State": state}
+            for k, v in attrs.items():
+                if isinstance(v, (str, int, float, bool)):
+                    substitutions[f"Attr:{k}"] = str(v)
+            for match in re.findall(r"%Attr:([^%]+)%", template):
+                key = f"Attr:{match}"
+                if key not in substitutions:
+                    substitutions[key] = ""
+            return _render_template(template, substitutions)
+        emoji = "🏃 " if _s(settings, "pu_show_emoji") == "1" else ""
+        return f"{emoji}{state}"
+
     def _run_loop(self):
         self.error = None
         try:
             with get_db() as conn:
                 settings = get_all_settings(conn)
 
-            music_clients, letterboxd, goodreads, audiobookshelf = self._build_clients(settings)
+            music_clients, letterboxd, goodreads, audiobookshelf, home_assistant = self._build_clients(settings)
             mastodon = self._get_mastodon_client(settings)
             custom_enabled = settings.get("pu_custom_enabled") == "1"
 
@@ -1533,7 +1635,7 @@ class ProfileUpdater:
                 self.running = False
                 return
 
-            if not music_clients and not letterboxd and not goodreads and not custom_enabled and not audiobookshelf:
+            if not music_clients and not letterboxd and not goodreads and not custom_enabled and not audiobookshelf and not home_assistant:
                 self.error = "No sources enabled"
                 self.running = False
                 return
@@ -1541,6 +1643,7 @@ class ProfileUpdater:
             music_interval = int(_s(settings, "pu_music_interval"))
             movie_interval = int(_s(settings, "pu_movie_interval"))
             book_interval = int(_s(settings, "pu_book_interval"))
+            workout_interval = int(settings.get("pu_workout_interval") or 21600)
             abs_interval = max(60, int(_s(settings, "pu_abs_interval")))
             loop_interval = min(music_interval, 60)
 
@@ -1767,6 +1870,19 @@ class ProfileUpdater:
 
                         self.last_book_update = now
 
+                    # Workout (Home Assistant) update
+                    if home_assistant and now - self.last_workout_update >= workout_interval:
+                        ha_data = home_assistant.get_state()
+                        if ha_data:
+                            workout_info = self._format_workout(ha_data, settings)
+                            if workout_info and workout_info != self.last_workout_info:
+                                self.last_workout_info = workout_info
+                                changed = True
+                                logger.info(f"Workout changed: {workout_info}")
+                                with get_db() as conn:
+                                    set_setting(conn, "pu_last_workout_info", workout_info)
+                        self.last_workout_update = now
+
                     # Weekly top artists toot — posted on configured day/hour if enabled
                     if settings.get("pu_weekly_artists_enabled") == "1" and music_clients:
                         now_dt = datetime.now()
@@ -1925,6 +2041,8 @@ class ProfileUpdater:
                             managed[_s(settings, "pu_movie_field_name")] = self.last_movie_info
                         if self.last_book_info:
                             managed[_s(settings, "pu_book_field_name")] = self.last_book_info
+                        if self.last_workout_info:
+                            managed[_s(settings, "pu_workout_field_name")] = self.last_workout_info
                         if self.last_custom_info:
                             name = settings.get("pu_custom_field_name", "").strip()
                             if name:

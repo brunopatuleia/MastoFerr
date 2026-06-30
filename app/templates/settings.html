@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Settings - Mastoferr{% endblock %}
 
-{% set field_order = settings.get('pu_field_order', 'music,movies,books,custom').split(',') %}
+{% set field_order = settings.get('pu_field_order', 'music,movies,books,workout,custom').split(',') %}
 
 {% block sidebar_extra %}
 <div class="sidebar-nav-sep"></div>
@@ -42,7 +42,9 @@
                     </div>
                 </div>
                 <div class="settings-actions">
-                    <a href="/auth/logout" class="btn btn-danger" onclick="return confirm('Disconnect your account? Your archived data will be kept.')">Disconnect</a>
+                    <form action="/auth/logout" method="post" style="display:inline;" onsubmit="return confirm('Disconnect your account? Your archived data will be kept.')">
+                        <button type="submit" class="btn btn-danger">Disconnect</button>
+                    </form>
                 </div>
                 {% else %}
                 <p class="setup-hint">No account connected. <a href="/setup">Set up your account</a>.</p>
@@ -157,6 +159,19 @@
                     <input type="password" id="pu_abs_token" name="pu_abs_token" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_abs_token') else 'Get from Settings → API Keys in Audiobookshelf' }}">
                 </div>
 
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <h2>Home Assistant</h2>
+                    <p class="connection-disclaimer">Used to pull Garmin Connect data (or any other sensor) to show your last workout in your Mastodon bio.</p>
+                    <label for="pu_ha_url">Server URL</label>
+                    <input type="text" id="pu_ha_url" name="pu_ha_url" placeholder="http://homeassistant.local:8123" value="{{ settings.get('pu_ha_url', '') }}">
+                    <label for="pu_ha_token" style="margin-top: 0.75rem;">Long-Lived Access Token</label>
+                    <p class="setup-hint" style="margin-bottom:0.4rem;">Create one in Home Assistant: Profile (bottom left) &rarr; Security &rarr; Long-Lived Access Tokens.</p>
+                    <input type="password" id="pu_ha_token" name="pu_ha_token" placeholder="{{ '••••••••• (leave blank to keep)' if settings.get('pu_ha_token') else 'Your HA Token' }}">
+                    <label for="pu_ha_entity_id" style="margin-top: 0.75rem;">Entity ID</label>
+                    <p class="setup-hint" style="margin-bottom:0.4rem;">The sensor ID containing your workout data, e.g., <code>sensor.garmin_last_activity</code>.</p>
+                    <input type="text" id="pu_ha_entity_id" name="pu_ha_entity_id" placeholder="sensor.garmin_last_activity" value="{{ settings.get('pu_ha_entity_id', '') }}">
+                </div>
+
                 <button type="submit" class="btn btn-sync" style="margin-top: 1.5rem;">Save Connections</button>
             </form>
 
@@ -219,6 +234,9 @@
                     {% if pu_status.last_book %}
                     <div class="pu-field"><span class="pu-field-label">Book:</span> {{ pu_status.last_book }}</div>
                     {% endif %}
+                    {% if pu_status.last_workout %}
+                    <div class="pu-field"><span class="pu-field-label">Workout:</span> {{ pu_status.last_workout }}</div>
+                    {% endif %}
                     {% if pu_status.last_custom %}
                     <div class="pu-field"><span class="pu-field-label">Custom:</span> {{ pu_status.last_custom }}</div>
                     {% endif %}
@@ -234,7 +252,7 @@
             </div>
 
             <form action="/settings/profile-updater" method="post" class="setup-form">
-                <input type="hidden" name="pu_field_order" id="pu_field_order" value="{{ settings.get('pu_field_order', 'music,movies,books,custom') }}">
+                <input type="hidden" name="pu_field_order" id="pu_field_order" value="{{ settings.get('pu_field_order', 'music,movies,books,workout,custom') }}">
 
                 <p class="setup-hint" style="margin: 1rem 0;">Drag sections to reorder how fields appear on your Mastodon profile.</p>
 
@@ -304,6 +322,26 @@
                             <input type="text" id="pu_custom_field_name" name="pu_custom_field_name" placeholder="e.g. STATUS, WEBSITE, PRONOUNS" value="{{ settings.get('pu_custom_field_name', '') }}">
                             <label for="pu_custom_field_value" style="margin-top: 0.75rem;">Value</label>
                             <input type="text" id="pu_custom_field_value" name="pu_custom_field_value" placeholder="e.g. Available for work, https://mysite.com" value="{{ settings.get('pu_custom_field_value', '') }}">
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if section_key.strip() == 'workout' %}
+                    <div class="settings-section sortable-section" data-key="workout" draggable="true">
+                        <label class="pu-section-toggle">
+                            <span class="drag-handle" title="Drag to reorder">&#9776;</span>
+                            <input type="checkbox" name="pu_workout_enabled" value="1" {{ 'checked' if settings.get('pu_workout_enabled', '0') == '1' }} onchange="toggleSection('workout-fields', this.checked)">
+                            <h2>Workout / Home Assistant</h2>
+                        </label>
+                        <div id="workout-fields" style="{{ '' if settings.get('pu_workout_enabled', '0') == '1' else 'display:none;' }}">
+                            <p class="setup-hint" style="margin-bottom: 0.75rem;">Uses Home Assistant — configured in Connections.</p>
+                            <label for="pu_workout_field_name">Profile field name</label>
+                            <input type="text" id="pu_workout_field_name" name="pu_workout_field_name" placeholder="LAST WORKOUT" value="{{ settings.get('pu_workout_field_name', 'LAST WORKOUT') }}">
+                            <label for="pu_workout_interval" style="margin-top: 0.75rem;">Check interval (seconds)</label>
+                            <input type="number" id="pu_workout_interval" name="pu_workout_interval" min="60" placeholder="21600" value="{{ settings.get('pu_workout_interval', '21600') }}">
+                            <label for="pu_ha_template" style="margin-top: 0.75rem;">Template</label>
+                            <p class="setup-hint" style="margin-bottom:0.4rem;">Format how the sensor is displayed. Use <code>%State%</code> for the main state, and <code>%Attr:name%</code> for any attribute (e.g., <code>%Attr:distance%</code>). Leave blank for default.</p>
+                            <input type="text" id="pu_ha_template" name="pu_ha_template" placeholder="🏃 %State% - %Attr:distance% km" value="{{ settings.get('pu_ha_template', '') }}">
                         </div>
                     </div>
                     {% endif %}
@@ -644,9 +682,15 @@ function loadStats() {
             document.getElementById('stats-total').textContent = data.total;
             document.getElementById('stats-plural').textContent = data.total === 1 ? '' : 's';
             var countries = Object.entries(data.countries).sort(function(a, b) { return b[1] - a[1]; });
-            document.getElementById('stats-countries').innerHTML = countries
-                .map(function(c) { return '<span class="setup-hint" style="margin-right:1rem;">' + c[0] + ' ' + c[1] + '</span>'; })
-                .join('');
+            var countriesEl = document.getElementById('stats-countries');
+            countriesEl.replaceChildren();
+            countries.forEach(function(c) {
+                var span = document.createElement('span');
+                span.className = 'setup-hint';
+                span.style.marginRight = '1rem';
+                span.textContent = c[0] + ' ' + c[1];
+                countriesEl.appendChild(span);
+            });
         })
         .catch(function() {
             document.getElementById('stats-loading').textContent = 'Could not load stats.';
@@ -847,10 +891,16 @@ function toggleProfileUpdater(action) {
         .then(function(data) {
             var el = document.getElementById('update-status');
             if (!el) return;
+            el.replaceChildren();
+            var span = document.createElement('span');
             if (data.update_available && data.latest) {
-                el.innerHTML = '<span style="color: var(--orange);">Update available: v' + data.latest + '</span>';
+                span.style.color = 'var(--orange)';
+                span.textContent = 'Update available: v' + data.latest;
+                el.appendChild(span);
             } else if (data.latest) {
-                el.innerHTML = '<span style="color: var(--green);">Up to date</span>';
+                span.style.color = 'var(--green)';
+                span.textContent = 'Up to date';
+                el.appendChild(span);
             }
         })
         .catch(function() {});

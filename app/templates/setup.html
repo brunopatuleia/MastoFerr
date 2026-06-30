@@ -19,7 +19,9 @@
                     <div class="acct">@{{ settings.account_acct }}@{{ settings.get('instance_url', '').replace('https://', '').replace('http://', '') }}</div>
                 </div>
             </div>
-            <a href="/auth/logout" class="btn btn-danger" onclick="return confirm('Disconnect your account? Your archived data will be kept.')">Disconnect</a>
+            <form action="/auth/logout" method="post" style="display:inline;" onsubmit="return confirm('Disconnect your account? Your archived data will be kept.')">
+                <button type="submit" class="btn btn-danger">Disconnect</button>
+            </form>
             <a href="/" class="btn btn-sync">Go to Dashboard</a>
         </div>
         {% else %}

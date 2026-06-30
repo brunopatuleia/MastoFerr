@@ -101,14 +101,29 @@ async function checkVersion() {
         const data = await response.json();
 
         if (data.update_available) {
-            container.innerHTML = `
-                <div style="margin-top: 10px; padding: 10px; border: 1px solid var(--accent); border-radius: 6px; background: rgba(255,255,255,0.05);">
-                    <strong style="color: var(--accent);">Update available: v${data.latest}</strong><br>
-                    <small>You are on v${data.current}. <a href="https://github.com/brunopatuleia/mastoferr" target="_blank" style="color: inherit; text-decoration: underline;">View on GitHub</a></small>
-                </div>
-            `;
+            container.replaceChildren();
+            const box = document.createElement('div');
+            box.style.cssText = 'margin-top: 10px; padding: 10px; border: 1px solid var(--accent); border-radius: 6px; background: rgba(255,255,255,0.05);';
+            const strong = document.createElement('strong');
+            strong.style.color = 'var(--accent)';
+            strong.textContent = `Update available: v${data.latest}`;
+            const small = document.createElement('small');
+            small.append(document.createTextNode(`You are on v${data.current}. `));
+            const link = document.createElement('a');
+            link.href = 'https://github.com/brunopatuleia/mastoferr';
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.style.cssText = 'color: inherit; text-decoration: underline;';
+            link.textContent = 'View on GitHub';
+            small.appendChild(link);
+            box.append(strong, document.createElement('br'), small);
+            container.appendChild(box);
         } else if (data.latest) {
-            container.innerHTML = `<small style="color: var(--green); display: block; margin-top: 5px;">You are up to date (v${data.current})</small>`;
+            container.replaceChildren();
+            const small = document.createElement('small');
+            small.style.cssText = 'color: var(--green); display: block; margin-top: 5px;';
+            small.textContent = `You are up to date (v${data.current})`;
+            container.appendChild(small);
         }
     } catch (err) {
         console.error('Failed to check version:', err);

@@ -8,6 +8,9 @@ GITHUB_REPO = "brunopatuleia/mastoferr"
 MASTODON_INSTANCE = os.environ.get("MASTODON_INSTANCE", "")
 MASTODON_ACCESS_TOKEN = os.environ.get("MASTODON_ACCESS_TOKEN", "")
 
+# Environment: 'production' or 'beta'
+APP_ENV = os.environ.get("APP_ENV", "production").lower()
+
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "5"))
 DB_PATH = os.environ.get("DB_PATH", "/app/data/mastoferr.db")
 MEDIA_PATH = os.environ.get("MEDIA_PATH", "/app/data/media")

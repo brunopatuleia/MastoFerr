@@ -2,9 +2,11 @@ import collections
 import hashlib
 import hmac
 import html
+import ipaddress
 import logging
 import math
 import secrets
+import socket as _socket
 import threading
 import time
 import uuid
@@ -21,8 +23,8 @@ from fastapi.templating import Jinja2Templates
 from mastodon import Mastodon
 
 from app.collector import run_full_sync
-from app.config import APP_PASSWORD, APP_URL, GITHUB_REPO, MASTODON_ACCESS_TOKEN, MASTODON_INSTANCE, MEDIA_PATH, POLL_INTERVAL, VERSION
-from app.profile_updater import ProfileUpdater, list_pending_toots, pop_pending_toot
+from app.config import APP_ENV, APP_PASSWORD, APP_URL, GITHUB_REPO, MASTODON_ACCESS_TOKEN, MASTODON_INSTANCE, MEDIA_PATH, POLL_INTERVAL, VERSION
+from app.profile_updater import ProfileUpdater, get_pending_toot, list_pending_toots, pop_pending_toot
 from app.roast import generate_roast, _add_to_roast_history
 from app.database import (
     can_post,
@@ -94,7 +96,7 @@ _log_buffer = _LogBuffer()
 _log_buffer.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG if APP_ENV == 'beta' else logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logging.getLogger().addHandler(_log_buffer)
@@ -117,6 +119,7 @@ _version_cache: dict = {"latest": None, "ts": 0.0}
 # Auth — populated during lifespan startup
 _secret_key: str = ""
 _AUTH_COOKIE = "tk_auth"
+_CSRF_COOKIE = "tk_csrf"
 _SECURE_COOKIES = APP_URL.startswith("https")
 
 # Rate limiting for /confirm-toot — max 10 attempts per IP per minute
@@ -136,27 +139,31 @@ def _is_authenticated(request: Request) -> bool:
     return request.cookies.get(_AUTH_COOKIE) == _auth_token()
 
 
-import socket as _socket
-
 _BLOCKED_HOSTS = {"169.254.169.254", "169.254.170.2", "metadata.google.internal"}
 
+
+def _host_resolves_safely(hostname: str) -> bool:
+    if hostname in _BLOCKED_HOSTS:
+        return False
+    try:
+        for info in _socket.getaddrinfo(hostname, None):
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_unspecified:
+                return False
+    except (_socket.gaierror, ValueError):
+        return False
+    return True
+
+
 def _safe_url(url: str) -> bool:
-    """Return False for cloud metadata endpoints and loopback addresses. Private IPs allowed (homelab)."""
+    """Return False for metadata, loopback, and link-local endpoints. Private IPs are allowed for homelab use."""
     from urllib.parse import urlparse
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
             return False
         hostname = (parsed.hostname or "").lower()
-        if hostname in _BLOCKED_HOSTS:
-            return False
-        try:
-            ip = _socket.gethostbyname(hostname)
-            if ip.startswith("127.") or ip in ("0.0.0.0", "::1"):
-                return False
-        except _socket.gaierror:
-            return False
-        return True
+        return bool(hostname and _host_resolves_safely(hostname))
     except Exception:
         return False
 
@@ -178,6 +185,42 @@ def _require_auth(request: Request) -> "RedirectResponse | None":
 def _require_auth_api(request: Request) -> "JSONResponse | None":
     if not _is_authenticated(request):
         return JSONResponse({"status": "error", "message": "Unauthorized"}, status_code=401)
+    return None
+
+
+def _csrf_token(request: Request) -> str:
+    token = request.cookies.get(_CSRF_COOKIE, "")
+    if len(token) >= 32:
+        return token
+    token = getattr(request.state, "csrf_token", "")
+    if token:
+        return token
+    token = secrets.token_urlsafe(32)
+    request.state.csrf_token = token
+    return token
+
+
+def _csrf_ok(request: Request, form=None) -> bool:
+    cookie = request.cookies.get(_CSRF_COOKIE, "")
+    supplied = request.headers.get("x-csrf-token", "")
+    if form is not None:
+        supplied = supplied or str(form.get("csrf_token", ""))
+    return bool(cookie and supplied and hmac.compare_digest(cookie, supplied))
+
+
+def _csrf_error(request: Request):
+    if request.url.path.startswith("/api/") or request.headers.get("accept", "").lower().find("application/json") >= 0:
+        return JSONResponse({"status": "error", "message": "Invalid CSRF token"}, status_code=403)
+    return HTMLResponse("Invalid CSRF token", status_code=403)
+
+
+async def _require_csrf(request: Request, form=None):
+    if not APP_PASSWORD:
+        return None
+    if form is None and request.headers.get("content-type", "").startswith("application/x-www-form-urlencoded"):
+        form = await request.form()
+    if not _csrf_ok(request, form):
+        return _csrf_error(request)
     return None
 
 
@@ -267,6 +310,8 @@ async def lifespan(app: FastAPI):
             logger.info("Migrated credentials from env vars to database.")
 
     logger.info(f"Poll interval: {POLL_INTERVAL} minutes")
+    if not APP_PASSWORD:
+        logger.warning("APP_PASSWORD is not set. The web UI is open to anyone who can reach it.")
     _start_scheduler()
 
     # Start profile updater if enabled (profile fields, ABS, or both)
@@ -285,6 +330,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Mastoferr", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
+
+
+@app.middleware("http")
+async def csrf_cookie_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if APP_PASSWORD and _is_authenticated(request) and not request.cookies.get(_CSRF_COOKIE):
+        response.set_cookie(_CSRF_COOKIE, _csrf_token(request), httponly=False, samesite="strict", secure=_SECURE_COOKIES)
+    return response
 
 # Serve downloaded media files
 media_dir = Path(MEDIA_PATH)
@@ -332,6 +385,8 @@ def _media_preview_url(attachment: dict) -> str | None:
 templates.env.globals["media_url"] = _media_url
 templates.env.globals["media_preview_url"] = _media_preview_url
 templates.env.globals["APP_VERSION"] = VERSION
+templates.env.globals["APP_ENV"] = APP_ENV
+templates.env.globals["csrf_token"] = _csrf_token
 
 
 def _get_app_settings() -> dict:
@@ -377,7 +432,9 @@ def _require_setup(request: Request) -> RedirectResponse | None:
 async def login_page(request: Request, next: str = "/", error: str = ""):
     if _is_authenticated(request):
         return RedirectResponse(url=_safe_next(next), status_code=302)
-    return templates.TemplateResponse("login.html", {"request": request, "next": next, "error": error})
+    response = templates.TemplateResponse("login.html", {"request": request, "next": next, "error": error})
+    response.set_cookie(_CSRF_COOKIE, _csrf_token(request), httponly=False, samesite="strict", secure=_SECURE_COOKIES)
+    return response
 
 
 @app.post("/login")
@@ -388,16 +445,20 @@ async def login_submit(request: Request):
     if APP_PASSWORD and hmac.compare_digest(password, APP_PASSWORD):
         response = RedirectResponse(url=next_url, status_code=302)
         response.set_cookie(_AUTH_COOKIE, _auth_token(), httponly=True, samesite="strict", secure=_SECURE_COOKIES)
+        response.set_cookie(_CSRF_COOKIE, _csrf_token(request), httponly=False, samesite="strict", secure=_SECURE_COOKIES)
         return response
-    return templates.TemplateResponse("login.html", {
+    response = templates.TemplateResponse("login.html", {
         "request": request, "next": next_url, "error": "Incorrect password",
     }, status_code=401)
+    response.set_cookie(_CSRF_COOKIE, _csrf_token(request), httponly=False, samesite="strict", secure=_SECURE_COOKIES)
+    return response
 
 
 @app.get("/logout")
 async def logout():
     response = RedirectResponse(url="/login", status_code=302)
     response.delete_cookie(_AUTH_COOKIE)
+    response.delete_cookie(_CSRF_COOKIE)
     return response
 
 
@@ -424,6 +485,8 @@ async def auth_login(request: Request):
     if auth:
         return auth
     form = await request.form()
+    if csrf := await _require_csrf(request, form):
+        return csrf
     instance_url = str(form.get("instance_url", "")).strip().rstrip("/")
 
     if not instance_url:
@@ -544,11 +607,13 @@ async def auth_callback(request: Request, code: str = "", state: str = ""):
         )
 
 
-@app.get("/auth/logout")
+@app.post("/auth/logout")
 async def auth_logout(request: Request):
     """Clear stored credentials and stop syncing."""
     if (auth := _require_auth(request)):
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     if scheduler.running:
         scheduler.shutdown(wait=False)
 
@@ -567,6 +632,8 @@ async def save_ai_settings(request: Request):
     if auth:
         return auth
     form = await request.form()
+    if csrf := await _require_csrf(request, form):
+        return csrf
     with get_db() as conn:
         for key in ("ai_provider", "ai_api_key", "ai_model", "ai_base_url"):
             value = str(form.get(key, "")).strip()
@@ -584,6 +651,8 @@ async def api_regenerate_roast(request: Request):
     auth = _require_auth_api(request)
     if auth:
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     global _last_roast_request
     with _roast_lock:
         now = time.time()
@@ -608,6 +677,8 @@ async def api_toot_roast(request: Request):
     auth = _require_auth_api(request)
     if auth:
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     with get_db() as conn:
         roast = get_setting(conn, "roast_current")
     if not roast:
@@ -631,6 +702,8 @@ async def api_rate_roast(request: Request):
     auth = _require_auth_api(request)
     if auth:
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     body = await request.json()
     rating = body.get("rating")
     if rating not in (1, -1):
@@ -680,6 +753,8 @@ async def api_logs_clear(request: Request):
     auth = _require_auth_api(request)
     if auth:
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     _log_buffer.clear()
     return JSONResponse({"status": "ok"})
 
@@ -956,6 +1031,8 @@ async def settings_app(request: Request):
     if (auth := _require_auth(request)):
         return auth
     form = await request.form()
+    if csrf := await _require_csrf(request, form):
+        return csrf
     with get_db() as conn:
         set_setting(conn, "interactions_tab_name", str(form.get("interactions_tab_name", "")).strip())
         days_val = str(form.get("interactions_days", "")).strip()
@@ -994,16 +1071,19 @@ def backup_db(request: Request):
 
 
 @app.post("/backup/export")
-def backup_export(
+async def backup_export(
     request: Request,
     include_toots: str | None = Form(None),
     include_replies: str | None = Form(None),
     include_favourites: str | None = Form(None),
     include_bookmarks: str | None = Form(None),
+    csrf_token: str | None = Form(None),
 ):
     """Download a filtered JSON export based on user-selected data types."""
     if (auth := _require_auth(request)):
         return auth
+    if APP_PASSWORD and not _csrf_ok(request, {"csrf_token": csrf_token or ""}):
+        return _csrf_error(request)
     import io, json as _json, zipfile
 
     if not any([include_toots, include_replies, include_favourites, include_bookmarks]):  # None = unchecked
@@ -1089,7 +1169,30 @@ def backup_markdown(request: Request):
 
 @app.get("/confirm-toot/{token}", response_class=HTMLResponse)
 async def confirm_toot(token: str, request: Request):
-    """Confirm and post a pending toot (linked from Discord notification)."""
+    """Show a confirmation page for a pending toot."""
+    if (auth := _require_auth(request)):
+        return auth
+    entry = get_pending_toot(token)
+    if entry is None:
+        return HTMLResponse(
+            "<h2>Link expired or already used.</h2><p>This confirmation link is no longer valid.</p>",
+            status_code=404,
+        )
+    return templates.TemplateResponse("confirm_toot.html", {
+        "request": request,
+        "token": token,
+        "entry": entry,
+    })
+
+
+@app.post("/confirm-toot/{token}", response_class=HTMLResponse)
+async def confirm_toot_post(token: str, request: Request):
+    """Confirm and post a pending toot."""
+    if (auth := _require_auth(request)):
+        return auth
+    if csrf := await _require_csrf(request):
+        return csrf
+
     # Rate limit by IP
     client_ip = request.client.host if request.client else "unknown"
     now = time.time()
@@ -1171,6 +1274,8 @@ async def queue_post_toot(token: str, request: Request):
     """Post a pending toot from the queue."""
     if (auth := _require_auth(request)):
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     entry = pop_pending_toot(token)
     if entry is None:
         return RedirectResponse("/queue?status=expired", status_code=303)
@@ -1215,6 +1320,8 @@ async def queue_dismiss_toot(token: str, request: Request):
     """Dismiss a pending toot from the queue without posting."""
     if (auth := _require_auth(request)):
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     pop_pending_toot(token)
     with get_db() as conn:
         update_confirmation_log(conn, token, "dismissed", time.time())
@@ -1226,6 +1333,8 @@ async def queue_history_post(entry_id: int, request: Request):
     """Re-post a dismissed or expired toot from the history log (text only — cover is gone)."""
     if (auth := _require_auth(request)):
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     with get_db() as conn:
         entry = get_confirmation_log_entry(conn, entry_id)
     if not entry or entry.get("action") == "posted":
@@ -1275,6 +1384,8 @@ async def api_stats(request: Request):
 async def api_sync(request: Request):
     if (auth := _require_auth_api(request)):
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     if sync_lock.locked():
         return JSONResponse({"status": "already_running"})
     creds = _get_credentials()
@@ -1297,6 +1408,7 @@ SERVICES_SETTINGS_KEYS = [
     "pu_letterboxd_rss_url",
     "pu_goodreads_rss_url",
     "pu_abs_url", "pu_abs_token",
+    "pu_ha_url", "pu_ha_token", "pu_ha_entity_id",
 ]
 
 # Secret fields are never sent back to the browser. On save, only overwrite if non-empty.
@@ -1304,6 +1416,7 @@ SERVICES_SECRET_KEYS = {
     "pu_lastfm_api_key", "pu_listenbrainz_token", "pu_navidrome_password",
     "pu_spotify_client_secret", "pu_spotify_refresh_token",
     "pu_jellyfin_api_key", "pu_plex_token", "pu_tautulli_api_key", "pu_abs_token",
+    "pu_ha_token",
 }
 
 PU_SETTINGS_KEYS = [
@@ -1311,11 +1424,13 @@ PU_SETTINGS_KEYS = [
     "pu_music_interval", "pu_movie_interval", "pu_book_interval",
     "pu_custom_field_name", "pu_custom_field_value",
     "pu_field_order",
+    "pu_workout_field_name", "pu_workout_interval", "pu_ha_template",
 ]
 
 PU_CHECKBOX_KEYS = [
     "pu_music_enabled", "pu_movies_enabled", "pu_books_enabled",
     "pu_custom_enabled", "pu_show_emoji",
+    "pu_workout_enabled",
 ]
 
 AUTO_TOOTS_SETTINGS_KEYS = [
@@ -1344,6 +1459,8 @@ async def settings_services(request: Request):
     if auth:
         return auth
     form = await request.form()
+    if csrf := await _require_csrf(request, form):
+        return csrf
     with get_db() as conn:
         for key in SERVICES_SETTINGS_KEYS:
             value = str(form.get(key, "")).strip()
@@ -1362,6 +1479,8 @@ async def settings_auto_toots(request: Request):
     if auth:
         return auth
     form = await request.form()
+    if csrf := await _require_csrf(request, form):
+        return csrf
     with get_db() as conn:
         for key in AUTO_TOOTS_SETTINGS_KEYS:
             set_setting(conn, key, str(form.get(key, "")).strip())
@@ -1384,6 +1503,8 @@ async def settings_profile_updater(request: Request):
     if auth:
         return auth
     form = await request.form()
+    if csrf := await _require_csrf(request, form):
+        return csrf
     with get_db() as conn:
         for key in PU_SETTINGS_KEYS:
             value = str(form.get(key, "")).strip()
@@ -1404,6 +1525,8 @@ async def settings_profile_updater(request: Request):
 async def api_tools_start(request: Request):
     if (auth := _require_auth_api(request)):
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     if profile_updater.running:
         return JSONResponse({"status": "ok", "message": "Already running"})
     with get_db() as conn:
@@ -1416,6 +1539,8 @@ async def api_tools_start(request: Request):
 async def api_tools_stop(request: Request):
     if (auth := _require_auth_api(request)):
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     profile_updater.stop()
     with get_db() as conn:
         set_setting(conn, "pu_enabled", "0")
@@ -1434,6 +1559,8 @@ async def api_tools_order(request: Request):
     """Save the field display order."""
     if (auth := _require_auth_api(request)):
         return auth
+    if csrf := await _require_csrf(request):
+        return csrf
     data = await request.json()
     order = data.get("order", [])
     if order:

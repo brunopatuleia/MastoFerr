@@ -2,7 +2,7 @@
 
 A self-hosted Mastodon activity archiver with full-text search, profile updater, and automated toots.
 
-> Built entirely through vibe coding with [Claude Code](https://claude.ai/claude-code). Security reviewed by [Claude Code](https://claude.ai/claude-code) and Gemini Code Assist.
+> Built through vibe coding with [Claude Code](https://claude.ai/claude-code), Gemini, and [OpenAI Codex](https://openai.com/codex/).
 
 ## Features
 

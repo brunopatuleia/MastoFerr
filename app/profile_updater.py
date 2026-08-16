@@ -1663,8 +1663,8 @@ class ProfileUpdater:
             return f"{emoji}No recent books"
         author = book.get("author")
         year = book.get("year")
-        details = ", ".join(str(value) for value in (author, year) if value)
-        details_str = f" - {details}" if details else ""
+        details = " ".join(part for part in (author, f"({year})" if year else "") if part)
+        details_str = f" — {details}" if details else ""
         return f"{emoji}{book['title']}{details_str}"
 
     def _run_loop(self):

@@ -581,12 +581,24 @@ class AudiobookshelfClient:
             year = meta.get("publishedYear") or (
                 (meta.get("publishedDate") or "")[:4] or None
             )
+            authors = meta.get("authors") or []
+            author = meta.get("authorName") or ", ".join(
+                entry.get("name", "") if isinstance(entry, dict) else str(entry)
+                for entry in authors
+                if entry
+            )
+            narrators = meta.get("narrators") or []
+            narrator = meta.get("narratorName") or ", ".join(
+                entry.get("name", "") if isinstance(entry, dict) else str(entry)
+                for entry in narrators
+                if entry
+            )
             return {
                 "id": library_item_id,
                 "title": meta.get("title") or "Unknown Title",
                 "subtitle": meta.get("subtitle") or "",
-                "author": meta.get("authorName") or "",
-                "narrator": meta.get("narratorName") or "",
+                "author": author,
+                "narrator": narrator,
                 "year": year,
                 "genres": meta.get("genres") or [],
             }

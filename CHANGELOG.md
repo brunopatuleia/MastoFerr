@@ -6,6 +6,14 @@ All notable changes to Mastoferr are documented here.
 
 ---
 
+## [1.4.2] - 2026-08-16
+
+### Fixed
+- Use Audiobookshelf as the authoritative profile book source when it is configured, preventing Goodreads failures from overwriting the field
+- Show the authenticated Audiobookshelf user's most recently finished book instead of an in-progress title
+- Support current Audiobookshelf `authors` and `narrators` metadata alongside legacy fields
+- Format the profile field as `📚 Title — Author (Year)`
+
 ## [2026-04-01]
 
 ### Added

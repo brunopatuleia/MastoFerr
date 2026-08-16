@@ -594,6 +594,29 @@ class AudiobookshelfClient:
             logger.error(f"Audiobookshelf item metadata failed ({library_item_id}): {e}")
             return None
 
+    def get_latest_finished_book(self) -> dict | None:
+        """Return the most recently updated finished book for the current user."""
+        try:
+            resp = _safe_request(
+                "GET",
+                f"{self.server_url}/api/me",
+                headers=self._headers,
+                timeout=10,
+            )
+            resp.raise_for_status()
+            finished = [
+                progress
+                for progress in resp.json().get("mediaProgress", [])
+                if progress.get("isFinished") and progress.get("libraryItemId")
+            ]
+            if not finished:
+                return None
+            latest = max(finished, key=lambda progress: progress.get("lastUpdate") or 0)
+            return self.get_book_metadata(latest["libraryItemId"])
+        except Exception as e:
+            logger.error(f"Audiobookshelf finished-book lookup failed: {e}")
+            return None
+
     def get_cover_bytes(self, library_item_id: str) -> bytes | None:
         """Download the book cover image."""
         try:
@@ -1935,24 +1958,17 @@ class ProfileUpdater:
                             if item.get("libraryItemId")
                         }
 
-                        # Keep the profile field synced with the current ABS
-                        # book on every poll, even when its start event was
-                        # already processed before a restart or deployment.
-                        for item in in_progress:
-                            current_item_id = item.get("libraryItemId")
-                            if not current_item_id:
-                                continue
-                            current_book = audiobookshelf.get_book_metadata(current_item_id)
-                            if not current_book:
-                                continue
-                            book_info = self._format_abs_book_for_profile(current_book, settings)
+                        # LAST BOOK means the latest completed audiobook, not
+                        # whichever title happens to be currently in progress.
+                        latest_finished_book = audiobookshelf.get_latest_finished_book()
+                        if latest_finished_book:
+                            book_info = self._format_abs_book_for_profile(latest_finished_book, settings)
                             if book_info != self.last_book_info:
                                 self.last_book_info = book_info
                                 changed = True
-                                logger.info(f"Book field refreshed from ABS: {book_info}")
+                                logger.info(f"Last book refreshed from ABS: {book_info}")
                                 with get_db() as conn:
                                     set_setting(conn, "pu_last_book_info", book_info)
-                            break
 
                         # New books started — collect pending notifications; post directly if no confirm
                         abs_pending_notifications: list[tuple] = []  # (label, toot_text, webhook_url)
@@ -1992,14 +2008,6 @@ class ProfileUpdater:
                                 self._post_toot_with_cover(mastodon, toot_text, cover_bytes, f"Cover of {label}", post_type="abs_started", visibility=settings.get("pu_toot_visibility") or "public")
                                 logger.info(f"Posted ABS started toot: {label}")
                             tooted_ids.add(item_id)
-                            # Update profile book field to show currently-reading book
-                            book_info = self._format_abs_book_for_profile(book, settings)
-                            if book_info != self.last_book_info:
-                                self.last_book_info = book_info
-                                changed = True
-                                logger.info(f"Book field updated (ABS started): {book_info}")
-                                with get_db() as conn:
-                                    set_setting(conn, "pu_last_book_info", book_info)
 
                         # Books that just left in-progress — check if finished
                         if settings.get("pu_abs_finished_enabled") == "1" and prev_ids:

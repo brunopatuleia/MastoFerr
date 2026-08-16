@@ -1620,6 +1620,14 @@ class ProfileUpdater:
         emoji = "🏃 " if _s(settings, "pu_show_emoji") == "1" else ""
         return f"{emoji}{state}"
 
+    def _format_abs_book_for_profile(self, book: dict | None, settings: dict) -> str:
+        """Format an Audiobookshelf book for the profile field (no rating)."""
+        emoji = "📚 " if _s(settings, "pu_show_emoji") == "1" else ""
+        if not book:
+            return f"{emoji}No recent books"
+        author_str = f" by {book['author']}" if book.get("author") else ""
+        return f"{emoji}{book['title']}{author_str}"
+
     def _run_loop(self):
         self.error = None
         try:
@@ -1965,7 +1973,7 @@ class ProfileUpdater:
                                 logger.info(f"Posted ABS started toot: {label}")
                             tooted_ids.add(item_id)
                             # Update profile book field to show currently-reading book
-                            book_info = self._format_book(book, settings)
+                            book_info = self._format_abs_book_for_profile(book, settings)
                             if book_info != self.last_book_info:
                                 self.last_book_info = book_info
                                 changed = True
@@ -2013,7 +2021,7 @@ class ProfileUpdater:
                                     self._post_toot_with_cover(mastodon, toot_text, cover_bytes, f"Cover of {label}", post_type="abs_finished", visibility=settings.get("pu_toot_visibility") or "public")
                                     logger.info(f"Posted ABS finished toot: {label}")
                                 # Update profile book field to show the finished book
-                                book_info = self._format_book(book, settings)
+                                book_info = self._format_abs_book_for_profile(book, settings)
                                 if book_info != self.last_book_info:
                                     self.last_book_info = book_info
                                     changed = True

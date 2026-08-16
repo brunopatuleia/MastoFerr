@@ -1649,8 +1649,11 @@ class ProfileUpdater:
         emoji = "📚 " if _s(settings, "pu_show_emoji") == "1" else ""
         if not book:
             return f"{emoji}No recent books"
-        author_str = f" by {book['author']}" if book.get("author") else ""
-        return f"{emoji}{book['title']}{author_str}"
+        details = " ".join(
+            str(value) for value in (book.get("author"), book.get("year")) if value
+        )
+        details_str = f" - {details}" if details else ""
+        return f"{emoji}{book['title']}{details_str}"
 
     def _run_loop(self):
         self.error = None

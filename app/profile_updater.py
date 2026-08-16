@@ -1415,13 +1415,6 @@ class ProfileUpdater:
             if lb_rss and _safe_url(lb_rss):
                 letterboxd = LetterboxdClient(lb_rss)
 
-        # Goodreads
-        goodreads = None
-        if settings.get("pu_books_enabled") == "1":
-            gr_rss = settings.get("pu_goodreads_rss_url", "").strip()
-            if gr_rss and _safe_url(gr_rss):
-                goodreads = GoodreadsClient(gr_rss)
-
         # Audiobookshelf
         audiobookshelf = None
         if settings.get("pu_abs_enabled") == "1":
@@ -1429,6 +1422,14 @@ class ProfileUpdater:
             abs_token = settings.get("pu_abs_token", "").strip()
             if abs_url and abs_token and _safe_url(abs_url):
                 audiobookshelf = AudiobookshelfClient(abs_url, abs_token)
+
+        # Goodreads is only a fallback book source. When Audiobookshelf is
+        # configured, its API is authoritative for the profile book field.
+        goodreads = None
+        if audiobookshelf is None and settings.get("pu_books_enabled") == "1":
+            gr_rss = settings.get("pu_goodreads_rss_url", "").strip()
+            if gr_rss and _safe_url(gr_rss):
+                goodreads = GoodreadsClient(gr_rss)
 
         # Home Assistant
         home_assistant = None
@@ -1933,6 +1934,25 @@ class ProfileUpdater:
                             for item in in_progress
                             if item.get("libraryItemId")
                         }
+
+                        # Keep the profile field synced with the current ABS
+                        # book on every poll, even when its start event was
+                        # already processed before a restart or deployment.
+                        for item in in_progress:
+                            current_item_id = item.get("libraryItemId")
+                            if not current_item_id:
+                                continue
+                            current_book = audiobookshelf.get_book_metadata(current_item_id)
+                            if not current_book:
+                                continue
+                            book_info = self._format_abs_book_for_profile(current_book, settings)
+                            if book_info != self.last_book_info:
+                                self.last_book_info = book_info
+                                changed = True
+                                logger.info(f"Book field refreshed from ABS: {book_info}")
+                                with get_db() as conn:
+                                    set_setting(conn, "pu_last_book_info", book_info)
+                            break
 
                         # New books started — collect pending notifications; post directly if no confirm
                         abs_pending_notifications: list[tuple] = []  # (label, toot_text, webhook_url)

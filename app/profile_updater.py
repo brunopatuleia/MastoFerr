@@ -1661,9 +1661,9 @@ class ProfileUpdater:
         emoji = "📚 " if _s(settings, "pu_show_emoji") == "1" else ""
         if not book:
             return f"{emoji}No recent books"
-        details = " ".join(
-            str(value) for value in (book.get("author"), book.get("year")) if value
-        )
+        author = book.get("author")
+        year = book.get("year")
+        details = ", ".join(str(value) for value in (author, year) if value)
         details_str = f" - {details}" if details else ""
         return f"{emoji}{book['title']}{details_str}"
 

@@ -6,6 +6,14 @@ All notable changes to Mastoferr are documented here.
 
 ---
 
+## [1.4.3] - 2026-08-16
+
+### Security
+- Require `APP_PASSWORD` in production and rate-limit failed login attempts
+- Upgrade FastAPI, Jinja, python-dotenv, python-multipart, Requests, and Starlette to patched releases
+- Validate the connected peer IP for outbound requests to mitigate DNS rebinding
+- Limit individual media downloads to 100 MiB by default and write them atomically
+
 ## [1.4.2] - 2026-08-16
 
 ### Fixed

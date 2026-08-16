@@ -1,6 +1,6 @@
 import os
 
-VERSION = "1.4.2"
+VERSION = "1.4.3"
 GITHUB_REPO = "brunopatuleia/mastoferr"
 
 # These env vars are optional — OAuth flow via the web UI is the primary method.
@@ -19,7 +19,7 @@ MEDIA_PATH = os.environ.get("MEDIA_PATH", "/app/data/media")
 # e.g. http://localhost:6886 or https://mastoferr.example.com
 APP_URL = os.environ.get("APP_URL", "http://localhost:6886")
 
-# Optional password to protect the web UI. Leave blank for open access.
+# Required in production. Non-production environments may leave it blank.
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 
 # AI provider for roast generation (optional)

@@ -128,6 +128,12 @@ _confirm_rate_lock = threading.Lock()
 _CONFIRM_MAX = 10
 _CONFIRM_WINDOW = 60.0
 
+# Slow online password guessing without retaining attempt data indefinitely.
+_login_rate: dict[str, list[float]] = {}
+_login_rate_lock = threading.Lock()
+_LOGIN_MAX = 5
+_LOGIN_WINDOW = 300.0
+
 
 def _auth_token() -> str:
     return hashlib.sha256(f"{APP_PASSWORD}:{_secret_key}".encode()).hexdigest()
@@ -288,6 +294,8 @@ def _start_scheduler():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _secret_key
+    if APP_ENV == "production" and not APP_PASSWORD:
+        raise RuntimeError("APP_PASSWORD is required when APP_ENV=production")
     init_db()
 
     # Generate and persist a secret key used to sign auth cookies
@@ -442,11 +450,24 @@ async def login_submit(request: Request):
     form = await request.form()
     password = str(form.get("password", ""))
     next_url = _safe_next(str(form.get("next", "/")))
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    with _login_rate_lock:
+        attempts = [t for t in _login_rate.get(client_ip, []) if now - t < _LOGIN_WINDOW]
+        if len(attempts) >= _LOGIN_MAX:
+            return templates.TemplateResponse("login.html", {
+                "request": request, "next": next_url,
+                "error": "Too many login attempts. Try again later.",
+            }, status_code=429)
     if APP_PASSWORD and hmac.compare_digest(password, APP_PASSWORD):
+        with _login_rate_lock:
+            _login_rate.pop(client_ip, None)
         response = RedirectResponse(url=next_url, status_code=302)
         response.set_cookie(_AUTH_COOKIE, _auth_token(), httponly=True, samesite="strict", secure=_SECURE_COOKIES)
         response.set_cookie(_CSRF_COOKIE, _csrf_token(request), httponly=False, samesite="strict", secure=_SECURE_COOKIES)
         return response
+    with _login_rate_lock:
+        _login_rate.setdefault(client_ip, []).append(now)
     response = templates.TemplateResponse("login.html", {
         "request": request, "next": next_url, "error": "Incorrect password",
     }, status_code=401)

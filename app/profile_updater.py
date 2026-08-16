@@ -60,14 +60,29 @@ def _safe_url(url: str) -> bool:
         return False
 
 
+def _validate_peer_address(resp: requests.Response) -> None:
+    """Reject a connection if its actual peer bypassed hostname validation."""
+    connection = getattr(resp.raw, "_connection", None)
+    sock = getattr(connection, "sock", None)
+    if sock is None:
+        resp.close()
+        raise ValueError("unable to verify peer address")
+    peer = ipaddress.ip_address(sock.getpeername()[0])
+    if peer.is_loopback or peer.is_link_local or peer.is_multicast or peer.is_unspecified:
+        resp.close()
+        raise ValueError("unsafe peer address")
+
+
 def _safe_request(method: str, url: str, max_redirects: int = 3, **kwargs) -> requests.Response:
     """Request a user-configured URL, validating each redirect hop."""
     current = url
     kwargs.pop("allow_redirects", None)
+    kwargs["stream"] = True
     for _ in range(max_redirects + 1):
         if not _safe_url(current):
             raise ValueError("unsafe URL")
         resp = requests.request(method, current, allow_redirects=False, **kwargs)
+        _validate_peer_address(resp)
         if resp.is_redirect:
             location = resp.headers.get("Location", "")
             resp.close()

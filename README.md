@@ -38,7 +38,7 @@ services:
     restart: unless-stopped
 ```
 
-2. Create a `.env` file — see [Configuration](https://github.com/brunopatuleia/MastoFerr/wiki/Configuration) for all options.
+2. Create a `.env` file with a strong `APP_PASSWORD` — see [Configuration](https://github.com/brunopatuleia/MastoFerr/wiki/Configuration) for all options. Production startup fails closed when this password is missing.
 
 3. Run it:
 

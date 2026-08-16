@@ -72,12 +72,26 @@ def _safe_media_url(url: str) -> bool:
         return False
 
 
+def _validate_peer_address(resp: requests.Response) -> None:
+    """Reject a connection if its actual peer bypassed hostname validation."""
+    connection = getattr(resp.raw, "_connection", None)
+    sock = getattr(connection, "sock", None)
+    if sock is None:
+        resp.close()
+        raise ValueError("unable to verify media peer address")
+    peer = ipaddress.ip_address(sock.getpeername()[0])
+    if peer.is_loopback or peer.is_link_local or peer.is_multicast or peer.is_unspecified:
+        resp.close()
+        raise ValueError("unsafe media peer address")
+
+
 def _get_safe_stream(url: str, timeout: int = 30, max_redirects: int = 3) -> requests.Response:
     current = url
     for _ in range(max_redirects + 1):
         if not _safe_media_url(current):
             raise ValueError("unsafe media URL")
         resp = requests.get(current, timeout=timeout, stream=True, allow_redirects=False)
+        _validate_peer_address(resp)
         if resp.is_redirect:
             location = resp.headers.get("Location", "")
             resp.close()
@@ -94,6 +108,7 @@ _SAFE_MEDIA_EXTS = {
     ".jpg", ".jpeg", ".png", ".gif", ".webp",
     ".mp4", ".mov", ".mp3", ".wav", ".ogg", ".m4a",
 }
+_MAX_MEDIA_BYTES = max(1, int(os.environ.get("MAX_MEDIA_DOWNLOAD_MB", "100"))) * 1024 * 1024
 
 
 def _sanitize_media_id(media_id: str) -> str:
@@ -150,13 +165,23 @@ def download_media(status: dict):
 
 def _download_file(url: str, dest: Path):
     """Download a file from URL to local path."""
+    partial = dest.with_suffix(dest.suffix + ".part")
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
         with _get_safe_stream(url) as resp:
-            with open(dest, "wb") as f:
+            content_length = int(resp.headers.get("Content-Length") or 0)
+            if content_length > _MAX_MEDIA_BYTES:
+                raise ValueError("media file exceeds download limit")
+            downloaded = 0
+            with open(partial, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=8192):
+                    downloaded += len(chunk)
+                    if downloaded > _MAX_MEDIA_BYTES:
+                        raise ValueError("media file exceeds download limit")
                     f.write(chunk)
+            partial.replace(dest)
     except Exception:
+        partial.unlink(missing_ok=True)
         logger.debug(f"Failed to download {url}")
 
 

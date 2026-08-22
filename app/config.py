@@ -19,8 +19,7 @@ MEDIA_PATH = os.environ.get("MEDIA_PATH", "/app/data/media")
 # e.g. http://localhost:6886 or https://mastoferr.example.com
 APP_URL = os.environ.get("APP_URL", "http://localhost:6886")
 
-# Required in production. Non-production environments may leave it blank.
-APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+
 
 # AI provider for roast generation (optional)
 # Supported: anthropic, openai, gemini, openai-compatible

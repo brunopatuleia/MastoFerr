@@ -23,7 +23,7 @@ from fastapi.templating import Jinja2Templates
 from mastodon import Mastodon
 
 from app.collector import run_full_sync
-from app.config import APP_ENV, APP_PASSWORD, APP_URL, GITHUB_REPO, MASTODON_ACCESS_TOKEN, MASTODON_INSTANCE, MEDIA_PATH, POLL_INTERVAL, VERSION
+from app.config import APP_ENV, APP_URL, GITHUB_REPO, MASTODON_ACCESS_TOKEN, MASTODON_INSTANCE, MEDIA_PATH, POLL_INTERVAL, VERSION
 from app.profile_updater import ProfileUpdater, get_pending_toot, list_pending_toots, pop_pending_toot
 from app.roast import generate_roast, _add_to_roast_history
 from app.database import (
@@ -128,7 +128,7 @@ _confirm_rate_lock = threading.Lock()
 _CONFIRM_MAX = 10
 _CONFIRM_WINDOW = 60.0
 
-# Slow online password guessing without retaining attempt data indefinitely.
+# Rate-limit Mastodon OAuth initiation attempts per IP to slow abuse.
 _login_rate: dict[str, list[float]] = {}
 _login_rate_lock = threading.Lock()
 _LOGIN_MAX = 5
@@ -136,12 +136,20 @@ _LOGIN_WINDOW = 300.0
 
 
 def _auth_token() -> str:
-    return hashlib.sha256(f"{APP_PASSWORD}:{_secret_key}".encode()).hexdigest()
+    """Derive the expected session cookie value from the stored Mastodon account_id and the
+    server-side secret key.  Tying the token to account_id means it is automatically
+    invalidated whenever the linked Mastodon account changes (e.g. after /auth/logout)."""
+    with get_db() as conn:
+        account_id = get_setting(conn, "account_id") or ""
+    return hashlib.sha256(f"{account_id}:{_secret_key}".encode()).hexdigest()
 
 
 def _is_authenticated(request: Request) -> bool:
-    if not APP_PASSWORD:
-        return True
+    """Return True when the request carries a valid session cookie.
+
+    Authentication is established by POST /login → Mastodon OAuth → /auth/callback,
+    which sets the tk_auth cookie to _auth_token().  No static password is involved.
+    """
     return request.cookies.get(_AUTH_COOKIE) == _auth_token()
 
 
@@ -221,8 +229,6 @@ def _csrf_error(request: Request):
 
 
 async def _require_csrf(request: Request, form=None):
-    if not APP_PASSWORD:
-        return None
     if form is None and request.headers.get("content-type", "").startswith("application/x-www-form-urlencoded"):
         form = await request.form()
     if not _csrf_ok(request, form):
@@ -294,8 +300,6 @@ def _start_scheduler():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _secret_key
-    if APP_ENV == "production" and not APP_PASSWORD:
-        raise RuntimeError("APP_PASSWORD is required when APP_ENV=production")
     init_db()
 
     # Generate and persist a secret key used to sign auth cookies
@@ -318,8 +322,6 @@ async def lifespan(app: FastAPI):
             logger.info("Migrated credentials from env vars to database.")
 
     logger.info(f"Poll interval: {POLL_INTERVAL} minutes")
-    if not APP_PASSWORD:
-        logger.warning("APP_PASSWORD is not set. The web UI is open to anyone who can reach it.")
     _start_scheduler()
 
     # Start profile updater if enabled (profile fields, ABS, or both)
@@ -343,7 +345,7 @@ app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="stati
 @app.middleware("http")
 async def csrf_cookie_middleware(request: Request, call_next):
     response = await call_next(request)
-    if APP_PASSWORD and _is_authenticated(request) and not request.cookies.get(_CSRF_COOKIE):
+    if _is_authenticated(request) and not request.cookies.get(_CSRF_COOKIE):
         response.set_cookie(_CSRF_COOKIE, _csrf_token(request), httponly=False, samesite="strict", secure=_SECURE_COOKIES)
     return response
 
@@ -424,13 +426,13 @@ def _paginate(page: int, per_page: int, total: int) -> dict:
 
 
 def _require_setup(request: Request) -> RedirectResponse | None:
-    """Return a redirect to /login or /setup if not authorized/configured, else None."""
+    """Return a redirect to /login if not authorized/configured, else None."""
     auth = _require_auth(request)
     if auth:
         return auth
     with get_db() as conn:
         if not is_configured(conn):
-            return RedirectResponse(url="/setup", status_code=302)
+            return RedirectResponse(url="/login", status_code=302)
     return None
 
 
@@ -438,45 +440,102 @@ def _require_setup(request: Request) -> RedirectResponse | None:
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, next: str = "/", error: str = ""):
+    """Show the Mastodon login page.
+
+    If the user is already authenticated, redirect immediately to `next`.
+    Otherwise render login.html with the instance URL pre-filled from the DB
+    (so returning users don't have to type it again) and a CSRF cookie.
+    """
     if _is_authenticated(request):
         return RedirectResponse(url=_safe_next(next), status_code=302)
-    response = templates.TemplateResponse("login.html", {"request": request, "next": next, "error": error})
+    with get_db() as conn:
+        instance_url = get_setting(conn, "instance_url") or ""
+    response = templates.TemplateResponse("login.html", {
+        "request": request,
+        "next": next,
+        "error": error,
+        "instance_url": instance_url.replace("https://", "").replace("http://", ""),
+    })
     response.set_cookie(_CSRF_COOKIE, _csrf_token(request), httponly=False, samesite="strict", secure=_SECURE_COOKIES)
     return response
 
 
 @app.post("/login")
 async def login_submit(request: Request):
+    """Initiate Mastodon OAuth from the login page."""
     form = await request.form()
-    password = str(form.get("password", ""))
     next_url = _safe_next(str(form.get("next", "/")))
+    instance_url = str(form.get("instance_url", "")).strip().rstrip("/")
     client_ip = request.client.host if request.client else "unknown"
     now = time.time()
     with _login_rate_lock:
         attempts = [t for t in _login_rate.get(client_ip, []) if now - t < _LOGIN_WINDOW]
         if len(attempts) >= _LOGIN_MAX:
             return templates.TemplateResponse("login.html", {
-                "request": request, "next": next_url,
+                "request": request, "next": next_url, "instance_url": instance_url,
                 "error": "Too many login attempts. Try again later.",
             }, status_code=429)
-    if APP_PASSWORD and hmac.compare_digest(password, APP_PASSWORD):
-        with _login_rate_lock:
-            _login_rate.pop(client_ip, None)
-        response = RedirectResponse(url=next_url, status_code=302)
-        response.set_cookie(_AUTH_COOKIE, _auth_token(), httponly=True, samesite="strict", secure=_SECURE_COOKIES)
-        response.set_cookie(_CSRF_COOKIE, _csrf_token(request), httponly=False, samesite="strict", secure=_SECURE_COOKIES)
-        return response
-    with _login_rate_lock:
         _login_rate.setdefault(client_ip, []).append(now)
-    response = templates.TemplateResponse("login.html", {
-        "request": request, "next": next_url, "error": "Incorrect password",
-    }, status_code=401)
-    response.set_cookie(_CSRF_COOKIE, _csrf_token(request), httponly=False, samesite="strict", secure=_SECURE_COOKIES)
-    return response
+
+    if not instance_url:
+        return templates.TemplateResponse("login.html", {
+            "request": request, "next": next_url, "instance_url": "",
+            "error": "Please enter your Mastodon instance (e.g. mastodon.social)",
+        }, status_code=400)
+
+    if not instance_url.startswith("http"):
+        instance_url = "https://" + instance_url
+
+    if not _safe_url(instance_url):
+        return templates.TemplateResponse("login.html", {
+            "request": request, "next": next_url,
+            "instance_url": instance_url.replace("https://", "").replace("http://", ""),
+            "error": "Invalid instance URL.",
+        }, status_code=400)
+
+    redirect_uri = APP_URL.rstrip("/") + "/auth/callback"
+    oauth_state = secrets.token_hex(16)
+
+    try:
+        client_id, client_secret = Mastodon.create_app(
+            "Mastoferr",
+            scopes=OAUTH_SCOPES.split(),
+            redirect_uris=redirect_uri,
+            api_base_url=instance_url,
+        )
+        with get_db() as conn:
+            set_setting(conn, "instance_url", instance_url)
+            set_setting(conn, "client_id", client_id)
+            set_setting(conn, "client_secret", client_secret)
+            set_setting(conn, "redirect_uri", redirect_uri)
+
+        client = Mastodon(client_id=client_id, client_secret=client_secret, api_base_url=instance_url)
+        auth_url = client.auth_request_url(scopes=OAUTH_SCOPES.split(), redirect_uris=redirect_uri)
+        separator = "&" if "?" in auth_url else "?"
+        auth_url = f"{auth_url}{separator}state={oauth_state}"
+
+        response = RedirectResponse(url=auth_url, status_code=302)
+        response.set_cookie("oauth_state", oauth_state, httponly=True, samesite="lax", max_age=600, secure=_SECURE_COOKIES)
+        # Encode next_url into a separate cookie so the callback can redirect there
+        response.set_cookie("login_next", next_url, httponly=True, samesite="lax", max_age=600, secure=_SECURE_COOKIES)
+        return response
+
+    except Exception as e:
+        logger.exception("Failed to register app with instance during login")
+        instance_label = instance_url.replace("https://", "").replace("http://", "")
+        return templates.TemplateResponse("login.html", {
+            "request": request, "next": next_url, "instance_url": instance_label,
+            "error": f"Could not connect to {instance_url}: {e}",
+        }, status_code=502)
 
 
 @app.get("/logout")
 async def logout():
+    """End the current web UI session by deleting the auth and CSRF cookies.
+
+    This does NOT disconnect the linked Mastodon account — syncing continues
+    in the background.  To fully disconnect, use POST /auth/logout.
+    """
     response = RedirectResponse(url="/login", status_code=302)
     response.delete_cookie(_AUTH_COOKIE)
     response.delete_cookie(_CSRF_COOKIE)
@@ -487,16 +546,14 @@ async def logout():
 
 @app.get("/setup", response_class=HTMLResponse)
 async def setup_page(request: Request, error: str = ""):
-    auth = _require_auth(request)
-    if auth:
-        return auth
-    with get_db() as conn:
-        settings = get_all_settings(conn)
-    return templates.TemplateResponse("setup.html", {
-        "request": request,
-        "settings": settings,
-        "error": error,
-    })
+    """Backwards-compatibility redirect: /setup → /login.
+
+    The login page now handles both first-time Mastodon account setup and
+    returning-user re-authentication, so this route just redirects there.
+    """
+    if error:
+        return RedirectResponse(url=f"/login?error={_url_quote(error)}", status_code=302)
+    return RedirectResponse(url="/login", status_code=302)
 
 
 @app.post("/auth/login")
@@ -572,21 +629,22 @@ async def auth_login(request: Request):
 async def auth_callback(request: Request, code: str = "", state: str = ""):
     """Handle the OAuth callback from the Mastodon instance."""
     if not code:
-        return RedirectResponse(url="/setup?error=Authorization+was+denied+or+failed", status_code=302)
+        return RedirectResponse(url="/login?error=Authorization+was+denied+or+failed", status_code=302)
 
     # Verify OAuth state to prevent CSRF on the callback
     expected_state = request.cookies.get("oauth_state", "")
     if not expected_state or not hmac.compare_digest(state, expected_state):
-        return RedirectResponse(url="/setup?error=Invalid+OAuth+state.+Please+try+again.", status_code=302)
+        return RedirectResponse(url="/login?error=Invalid+OAuth+state.+Please+try+again.", status_code=302)
 
     with get_db() as conn:
         instance_url = get_setting(conn, "instance_url")
         client_id = get_setting(conn, "client_id")
         client_secret = get_setting(conn, "client_secret")
         redirect_uri = get_setting(conn, "redirect_uri")
+        existing_account_id = get_setting(conn, "account_id")
 
     if not all([instance_url, client_id, client_secret]):
-        return RedirectResponse(url="/setup?error=Missing+app+credentials.+Please+try+again.", status_code=302)
+        return RedirectResponse(url="/login?error=Missing+app+credentials.+Please+try+again.", status_code=302)
 
     try:
         client = Mastodon(
@@ -604,6 +662,16 @@ async def auth_callback(request: Request, code: str = "", state: str = ""):
         client.access_token = access_token
         me = client.me()
 
+        # If an account is already stored, reject logins from a different account
+        if existing_account_id and str(me["id"]) != existing_account_id:
+            logger.warning(
+                f"OAuth login rejected: account {me['acct']} does not match stored account_id {existing_account_id}"
+            )
+            return RedirectResponse(
+                url=f"/login?error={_url_quote('This instance is already linked to a different Mastodon account.')}",
+                status_code=302,
+            )
+
         with get_db() as conn:
             set_setting(conn, "access_token", access_token)
             set_setting(conn, "account_id", str(me["id"]))
@@ -616,21 +684,30 @@ async def auth_callback(request: Request, code: str = "", state: str = ""):
         # Start syncing now that we have credentials
         _start_scheduler()
 
-        response = RedirectResponse(url="/", status_code=302)
+        # Read the next URL from the login_next cookie (set by POST /login)
+        next_url = _safe_next(request.cookies.get("login_next", "/"))
+
+        response = RedirectResponse(url=next_url, status_code=302)
         response.delete_cookie("oauth_state")
+        response.delete_cookie("login_next")
+        # Set the session cookie — the user is now logged in
+        response.set_cookie(_AUTH_COOKIE, _auth_token(), httponly=True, samesite="strict", secure=_SECURE_COOKIES)
         return response
 
     except Exception as e:
         logger.exception("OAuth callback failed")
         return RedirectResponse(
-            url=f"/setup?error={_url_quote(f'Login failed: {e}')}",
+            url=f"/login?error={_url_quote(f'Login failed: {e}')}",
             status_code=302,
         )
 
 
+
+
+
 @app.post("/auth/logout")
 async def auth_logout(request: Request):
-    """Clear stored credentials and stop syncing."""
+    """Clear stored credentials, stop syncing, and log out of the web UI."""
     if (auth := _require_auth(request)):
         return auth
     if csrf := await _require_csrf(request):
@@ -643,7 +720,10 @@ async def auth_logout(request: Request):
                      "account_id", "account_acct", "account_display_name", "account_avatar"]:
             conn.execute("DELETE FROM app_settings WHERE key=?", (key,))
 
-    return RedirectResponse(url="/setup", status_code=302)
+    response = RedirectResponse(url="/login", status_code=302)
+    response.delete_cookie(_AUTH_COOKIE)
+    response.delete_cookie(_CSRF_COOKIE)
+    return response
 
 
 @app.post("/settings/ai")
@@ -1103,7 +1183,7 @@ async def backup_export(
     """Download a filtered JSON export based on user-selected data types."""
     if (auth := _require_auth(request)):
         return auth
-    if APP_PASSWORD and not _csrf_ok(request, {"csrf_token": csrf_token or ""}):
+    if not _csrf_ok(request, {"csrf_token": csrf_token or ""}):
         return _csrf_error(request)
     import io, json as _json, zipfile
 

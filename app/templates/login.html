@@ -5,7 +5,7 @@
 <div class="setup-page">
     <div class="setup-card">
         <h1>Mastoferr</h1>
-        <p class="setup-desc">Enter the password to access your archive.</p>
+        <p class="setup-desc">Sign in with your Mastodon account to access your archive.</p>
 
         {% if error %}
         <div class="error-msg">{{ error }}</div>
@@ -13,11 +13,20 @@
 
         <form action="/login" method="post" class="setup-form">
             <input type="hidden" name="next" value="{{ next }}">
-            <label for="password">Password</label>
+            <label for="instance_url">Your Mastodon Instance</label>
             <div class="input-row">
-                <input type="password" id="password" name="password" autofocus required>
-                <button type="submit" class="btn btn-sync">Login</button>
+                <input
+                    type="text"
+                    id="instance_url"
+                    name="instance_url"
+                    placeholder="mastodon.social"
+                    value="{{ instance_url }}"
+                    required
+                    autofocus
+                >
+                <button type="submit" class="btn btn-sync">Login with Mastodon</button>
             </div>
+            <p class="setup-hint">Enter your instance domain (e.g. mastodon.social, fosstodon.org). You'll be redirected to authorise access.</p>
         </form>
     </div>
 </div>

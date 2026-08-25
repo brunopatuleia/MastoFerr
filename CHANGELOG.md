@@ -6,6 +6,23 @@ All notable changes to Mastoferr are documented here.
 
 ---
 
+## [Unreleased - beta]
+
+### Changed
+- **Mastodon OAuth is now the login gate** — `APP_PASSWORD` has been removed entirely. The login page now shows a Mastodon instance URL field; submitting it kicks off the OAuth flow and sets a session cookie on success. No static password is ever needed or stored.
+- `/login` now handles both first-time setup and returning-user re-authentication. `/setup` redirects to `/login` for backwards compatibility.
+- Session cookie (`tk_auth`) is derived from the stored Mastodon `account_id` + server secret key, so it is automatically invalidated whenever the linked account changes.
+- CSRF protection is now always enforced (previously it was conditional on `APP_PASSWORD` being set).
+- `/logout` ends the web UI session without disconnecting the Mastodon account. `/auth/logout` (Disconnect) clears both.
+- OAuth callback now validates that the authorising account matches the stored `account_id` — a different account is rejected with an error.
+- `APP_PASSWORD` removed from `config.py` and `.env.example`.
+
+### Infrastructure
+- Added `beta` branch: all development now lands on `beta` first. GitHub Actions builds and publishes `ghcr.io/brunopatuleia/mastoferr:beta` on every push to `beta`, and `:main` only when explicitly promoted.
+- `docker-compose.yml` updated: both `mastoferr` and `mastoferr-beta` services use port `6886` — run one at a time, swap when promoting.
+
+---
+
 ## [1.4.3] - 2026-08-16
 
 ### Security

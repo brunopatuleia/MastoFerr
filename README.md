@@ -4,6 +4,13 @@ A self-hosted Mastodon activity archiver with full-text search, profile updater,
 
 > Built through vibe coding with [Claude Code](https://claude.ai/claude-code), Gemini, and [OpenAI Codex](https://openai.com/codex/).
 
+## Branches
+
+| Branch | Image | Purpose |
+|--------|-------|---------|
+| `main` | `ghcr.io/brunopatuleia/mastoferr:main` | Stable — production |
+| `beta` | `ghcr.io/brunopatuleia/mastoferr:beta` | Development — tested before promoting to main |
+
 ## Features
 
 - Archive toots, notifications, favorites, bookmarks, and media
@@ -17,7 +24,7 @@ A self-hosted Mastodon activity archiver with full-text search, profile updater,
 - Live log viewer at `/logs` with auto-refresh
 - AI-powered roast of your posting habits
 - Anonymous installation statistics (opt-out in Settings → Display)
-- OAuth login — no tokens to copy/paste
+- **Login via Mastodon OAuth** — no passwords, no tokens to copy/paste
 - Dark, responsive web UI
 - Docker-ready (amd64 + arm64)
 
@@ -28,9 +35,9 @@ A self-hosted Mastodon activity archiver with full-text search, profile updater,
 ```yaml
 services:
   mastoferr:
-    image: patuleia/mastoferr:latest
+    image: ghcr.io/brunopatuleia/mastoferr:main
     ports:
-      - "6886:6886"
+      - "127.0.0.1:6886:8080"
     volumes:
       - ./data:/app/data
     env_file:
@@ -38,7 +45,7 @@ services:
     restart: unless-stopped
 ```
 
-2. Create a `.env` file with a strong `APP_PASSWORD` — see [Configuration](https://github.com/brunopatuleia/MastoFerr/wiki/Configuration) for all options. Production startup fails closed when this password is missing.
+2. Create a `.env` file — see [Configuration](https://github.com/brunopatuleia/MastoFerr/wiki/Configuration) for all options. The minimum required variable is `APP_URL` (the URL where the app is reachable, used for the OAuth redirect).
 
 3. Run it:
 
@@ -46,7 +53,11 @@ services:
 docker compose up -d
 ```
 
-4. Open `http://localhost:6886`, enter your Mastodon instance, and authorize.
+4. Open `http://localhost:6886`, enter your Mastodon instance, and authorise.
+
+## Authentication
+
+Mastoferr uses **Mastodon OAuth** as the only login method — no static password is needed. On first visit you enter your instance domain (e.g. `mastodon.social`), get redirected to Mastodon to authorise, and land back on the dashboard with a session cookie. Your Mastodon password is never seen or stored by Mastoferr.
 
 ## Documentation
 

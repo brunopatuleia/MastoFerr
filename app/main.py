@@ -190,9 +190,15 @@ def _safe_url(url: str) -> bool:
 
 
 def _safe_next(url: str) -> str:
-    """Allow only relative paths to prevent open redirect attacks."""
-    if url and url.startswith("/") and not url.startswith("//"):
-        return url
+    """Allow only safe relative paths to prevent open redirect attacks."""
+    if url and url.startswith("/") and not url.startswith("//") and not url.startswith("/\\"):
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(url)
+            if not parsed.netloc and not parsed.scheme and parsed.path.startswith("/"):
+                return url
+        except Exception:
+            pass
     return "/"
 
 
@@ -357,8 +363,11 @@ app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="stati
 
 
 @app.middleware("http")
-async def csrf_cookie_middleware(request: Request, call_next):
+async def security_and_csrf_middleware(request: Request, call_next):
     response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     if _is_authenticated(request) and not request.cookies.get(_CSRF_COOKIE):
         response.set_cookie(_CSRF_COOKIE, _csrf_token(request), httponly=False, samesite="strict", secure=_SECURE_COOKIES)
     return response

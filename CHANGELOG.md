@@ -2,11 +2,16 @@
 
 All notable changes to Mastoferr are documented here.
 
-> This project is built entirely through vibe coding with [Claude Code](https://claude.ai/claude-code). Every feature, fix, and security patch in this changelog was written by AI.
+> This project is built entirely through vibe coding with [Claude Code](https://claude.ai/claude-code), Gemini, and [OpenAI Codex](https://openai.com/codex/). Every feature, fix, and security patch in this changelog was written by AI.
 
 ---
 
 ## [Unreleased - beta]
+
+### Security
+- Added standard defensive HTTP security response headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`) to all responses.
+- Hardened open redirect path validation in `_safe_next()`.
+- Parameterized SQLite date window queries in `get_frequent_words` and `get_hashtag_counts`.
 
 ### Added
 - **Automated Version Update Announcements** — Whenever Mastoferr is updated to a new version, an announcement toot is automatically drafted with extracted highlights from `CHANGELOG.md` and queued in your Post Queue (with Discord confirmation if enabled). You can preview, edit, approve, or dismiss the toot before it's published to Mastodon. Configurable and testable in **Settings → Auto Toots**.

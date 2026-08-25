@@ -688,10 +688,13 @@ def get_topic_counts(conn: sqlite3.Connection, limit: int = 50, days: int | None
         "quando", "onde", "quem", "qual", "cada", "todo", "toda", "todos", "todas",
         "http", "https", "www", "com",
     }
-    date_sql = f"AND created_at >= datetime('now', '-{days} days')" if days else ""
+    date_sql, date_params = _date_filter("created_at", int(days) if days else None)
     counts = Counter()
     for table in ("toots", "favorites", "bookmarks"):
-        cursor = conn.execute(f"SELECT content_text FROM {table} WHERE content_text IS NOT NULL AND content_text != '' {date_sql}")
+        cursor = conn.execute(
+            f"SELECT content_text FROM {table} WHERE content_text IS NOT NULL AND content_text != '' {date_sql}",
+            date_params,
+        )
         for row in cursor:
             words = re.findall(r'[a-zA-ZÀ-ÿ]{4,}', row["content_text"].lower())
             for word in words:
@@ -719,10 +722,36 @@ def get_follower_events(conn: sqlite3.Connection, page: int = 1, per_page: int =
     offset = (page - 1) * per_page
     total = conn.execute("SELECT COUNT(*) as c FROM follower_events").fetchone()["c"]
     rows = conn.execute(
-        "SELECT * FROM follower_events ORDER BY occurred_at DESC LIMIT ? OFFSET ?",
+        """SELECT * FROM follower_events
+           ORDER BY occurred_at DESC
+           LIMIT ? OFFSET ?""",
         (per_page, offset),
     ).fetchall()
     return [dict(r) for r in rows], total
+
+
+def get_current_followers(conn: sqlite3.Connection) -> list[dict]:
+    rows = conn.execute(
+        """SELECT account_id, account_acct, account_display_name, account_avatar,
+                  account_note, account_url, followed_at
+           FROM followers
+           ORDER BY followed_at DESC"""
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_lost_followers(conn: sqlite3.Connection) -> list[dict]:
+    rows = conn.execute(
+        """SELECT account_id, account_acct, account_display_name, account_avatar,
+                  account_note, account_url,
+                  MAX(occurred_at) as unfollowed_at
+           FROM follower_events
+           WHERE account_id NOT IN (SELECT account_id FROM followers)
+           GROUP BY account_id
+           HAVING MAX(CASE WHEN event_type = 'unfollowed' THEN occurred_at END) IS NOT NULL
+           ORDER BY unfollowed_at DESC"""
+    ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_follower_chart_data(conn: sqlite3.Connection, days: int = 30) -> dict:
@@ -773,7 +802,7 @@ def get_follower_counts(conn: sqlite3.Connection) -> dict:
 
 def get_hashtag_counts(conn: sqlite3.Connection, limit: int = 100, days: int | None = None) -> list[dict]:
     """Extract hashtag counts from raw_json using SQLite json_each — no Python parsing."""
-    date_clause = f"AND created_at >= datetime('now', '-{days} days')" if days else ""
+    date_clause, date_params = _date_filter("created_at", int(days) if days else None)
     query = f"""
         SELECT hashtag, COUNT(*) as count
         FROM (
@@ -798,7 +827,8 @@ def get_hashtag_counts(conn: sqlite3.Connection, limit: int = 100, days: int | N
         ORDER BY count DESC
         LIMIT ?
     """
-    rows = conn.execute(query, (limit,)).fetchall()
+    params = (*date_params, *date_params, *date_params, *date_params, limit)
+    rows = conn.execute(query, params).fetchall()
     if not rows:
         return []
     max_count = rows[0]["count"]

@@ -1,11 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Login - Mastoferr{% endblock %}
+{% block title %}{{ 'Login' if configured else 'Welcome' }} - Mastoferr{% endblock %}
 
 {% block content %}
 <div class="setup-page">
     <div class="setup-card">
         <h1>Mastoferr</h1>
+        {% if configured %}
         <p class="setup-desc">Sign in with your Mastodon account to access your archive.</p>
+        {% else %}
+        <p class="setup-desc">Welcome to Mastoferr! Connect your Mastodon account to get started.</p>
+        {% endif %}
 
         {% if error %}
         <div class="error-msg">{{ error }}</div>
@@ -24,7 +28,7 @@
                     required
                     autofocus
                 >
-                <button type="submit" class="btn btn-sync">Login with Mastodon</button>
+                <button type="submit" class="btn btn-sync">{{ 'Login with Mastodon' if configured else 'Connect Account' }}</button>
             </div>
             <p class="setup-hint">Enter your instance domain (e.g. mastodon.social, fosstodon.org). You'll be redirected to authorise access.</p>
         </form>

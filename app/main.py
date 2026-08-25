@@ -145,11 +145,18 @@ def _auth_token() -> str:
 
 
 def _is_authenticated(request: Request) -> bool:
-    """Return True when the request carries a valid session cookie.
+    """Return True when the request should be granted access.
 
     Authentication is established by POST /login → Mastodon OAuth → /auth/callback,
     which sets the tk_auth cookie to _auth_token().  No static password is involved.
+
+    When require_login is disabled (the default), this always returns True — the app
+    is open to anyone who can reach it on the network (e.g. behind Tailscale).
     """
+    with get_db() as conn:
+        require_login = get_setting(conn, "require_login") == "1"
+    if not require_login:
+        return True
     return request.cookies.get(_AUTH_COOKIE) == _auth_token()
 
 
@@ -229,6 +236,10 @@ def _csrf_error(request: Request):
 
 
 async def _require_csrf(request: Request, form=None):
+    with get_db() as conn:
+        require_login = get_setting(conn, "require_login") == "1"
+    if not require_login:
+        return None
     if form is None and request.headers.get("content-type", "").startswith("application/x-www-form-urlencoded"):
         form = await request.form()
     if not _csrf_ok(request, form):
@@ -440,21 +451,23 @@ def _require_setup(request: Request) -> RedirectResponse | None:
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, next: str = "/", error: str = ""):
-    """Show the Mastodon login page.
+    """Show the Mastodon login / setup page.
 
-    If the user is already authenticated, redirect immediately to `next`.
+    If the user is already authenticated and configured, redirect immediately to `next`.
     Otherwise render login.html with the instance URL pre-filled from the DB
     (so returning users don't have to type it again) and a CSRF cookie.
     """
-    if _is_authenticated(request):
-        return RedirectResponse(url=_safe_next(next), status_code=302)
     with get_db() as conn:
+        configured = is_configured(conn)
         instance_url = get_setting(conn, "instance_url") or ""
+    if configured and _is_authenticated(request):
+        return RedirectResponse(url=_safe_next(next), status_code=302)
     response = templates.TemplateResponse("login.html", {
         "request": request,
         "next": next,
         "error": error,
         "instance_url": instance_url.replace("https://", "").replace("http://", ""),
+        "configured": configured,
     })
     response.set_cookie(_CSRF_COOKIE, _csrf_token(request), httponly=False, samesite="strict", secure=_SECURE_COOKIES)
     return response
@@ -1134,13 +1147,18 @@ async def settings_app(request: Request):
     form = await request.form()
     if csrf := await _require_csrf(request, form):
         return csrf
+    require_login = "1" if form.get("require_login") else "0"
     with get_db() as conn:
         set_setting(conn, "interactions_tab_name", str(form.get("interactions_tab_name", "")).strip())
         days_val = str(form.get("interactions_days", "")).strip()
         if days_val.isdigit() and int(days_val) >= 1:
             set_setting(conn, "interactions_days", days_val)
         set_setting(conn, "telemetry_opt_out", "1" if form.get("telemetry_opt_out") else "0")
-    return RedirectResponse(url="/settings?saved=1#app", status_code=302)
+        set_setting(conn, "require_login", require_login)
+    response = RedirectResponse(url="/settings?saved=1#app", status_code=302)
+    if require_login == "1":
+        response.set_cookie(_AUTH_COOKIE, _auth_token(), httponly=True, samesite="strict", secure=_SECURE_COOKIES)
+    return response
 
 
 @app.get("/toot/{toot_id}", response_class=HTMLResponse)
@@ -1183,8 +1201,8 @@ async def backup_export(
     """Download a filtered JSON export based on user-selected data types."""
     if (auth := _require_auth(request)):
         return auth
-    if not _csrf_ok(request, {"csrf_token": csrf_token or ""}):
-        return _csrf_error(request)
+    if csrf := await _require_csrf(request, {"csrf_token": csrf_token or ""}):
+        return csrf
     import io, json as _json, zipfile
 
     if not any([include_toots, include_replies, include_favourites, include_bookmarks]):  # None = unchecked

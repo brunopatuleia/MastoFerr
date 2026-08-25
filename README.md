@@ -55,9 +55,11 @@ docker compose up -d
 
 4. Open `http://localhost:6886`, enter your Mastodon instance, and authorise.
 
-## Authentication
+## Authentication & Security
 
-Mastoferr uses **Mastodon OAuth** as the only login method — no static password is needed. On first visit you enter your instance domain (e.g. `mastodon.social`), get redirected to Mastodon to authorise, and land back on the dashboard with a session cookie. Your Mastodon password is never seen or stored by Mastoferr.
+- **Homelab / Tailscale (Default)**: Login is **disabled by default**. Anyone who can reach the app on your network, VPN, or Tailscale can access the web UI without passwords or session prompts.
+- **Public Internet Exposure**: If you expose Mastoferr to the internet, enable **"Require Mastodon login to access web UI"** under **Settings → Display & Security**. Visitors will be required to authenticate with your linked Mastodon account via OAuth.
+- **Account Connection**: Connecting your Mastodon account is done once via OAuth. Mastoferr never sees or stores your Mastodon password.
 
 ## Documentation
 

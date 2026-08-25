@@ -9,12 +9,13 @@ All notable changes to Mastoferr are documented here.
 ## [Unreleased - beta]
 
 ### Changed
-- **Mastodon OAuth is now the login gate** — `APP_PASSWORD` has been removed entirely. The login page now shows a Mastodon instance URL field; submitting it kicks off the OAuth flow and sets a session cookie on success. No static password is ever needed or stored.
-- `/login` now handles both first-time setup and returning-user re-authentication. `/setup` redirects to `/login` for backwards compatibility.
+- **Optional Web UI Login & Removed `APP_PASSWORD`** — `APP_PASSWORD` has been removed entirely. By default, web UI login is **optional / disabled** for frictionless homelab use over LAN, VPN, or Tailscale (e.g. clicking Discord auto-toot confirmation links directly opens the post queue without passwords or prompts).
+- **Web UI Security Toggle** — An option **"Require Mastodon login to access web UI"** is available under **Settings → Display & Security**. When enabled, web UI access requires logging in with your linked Mastodon account via OAuth.
+- `/login` handles first-time account setup and returning-user re-authentication (when login is enabled). `/setup` redirects to `/login` for backwards compatibility.
 - Session cookie (`tk_auth`) is derived from the stored Mastodon `account_id` + server secret key, so it is automatically invalidated whenever the linked account changes.
-- CSRF protection is now always enforced (previously it was conditional on `APP_PASSWORD` being set).
+- CSRF protection is enforced whenever login is required.
 - `/logout` ends the web UI session without disconnecting the Mastodon account. `/auth/logout` (Disconnect) clears both.
-- OAuth callback now validates that the authorising account matches the stored `account_id` — a different account is rejected with an error.
+- OAuth callback validates that the authorising account matches the stored `account_id` — a different account is rejected with an error.
 - `APP_PASSWORD` removed from `config.py` and `.env.example`.
 
 ### Infrastructure

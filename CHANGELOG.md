@@ -8,6 +8,9 @@ All notable changes to Mastoferr are documented here.
 
 ## [Unreleased - beta]
 
+### Added
+- **Automated Version Update Announcements** — Whenever Mastoferr is updated to a new version, an announcement toot is automatically drafted with extracted highlights from `CHANGELOG.md` and queued in your Post Queue (with Discord confirmation if enabled). You can preview, edit, approve, or dismiss the toot before it's published to Mastodon. Configurable and testable in **Settings → Auto Toots**.
+
 ### Changed
 - **Optional Web UI Login & Removed `APP_PASSWORD`** — `APP_PASSWORD` has been removed entirely. By default, web UI login is **optional / disabled** for frictionless homelab use over LAN, VPN, or Tailscale (e.g. clicking Discord auto-toot confirmation links directly opens the post queue without passwords or prompts).
 - **Web UI Security Toggle** — An option **"Require Mastodon login to access web UI"** is available under **Settings → Display & Security**. When enabled, web UI access requires logging in with your linked Mastodon account via OAuth.

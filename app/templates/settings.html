@@ -404,10 +404,15 @@
                         Audiobookshelf — Finished Audiobook
                         <i class="info-tip">i<span class="tip-text">Finished audiobook toots are held and sent to Discord for approval. Click the confirm link in Discord to publish.</span></i>
                     </label>
-                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.3rem;">
                         <input type="checkbox" name="pu_nd_star_confirm" value="1" {{ 'checked' if settings.get('pu_nd_star_confirm', '0') == '1' }} onchange="this.form.submit()">
                         Navidrome — Loved Track
                         <i class="info-tip">i<span class="tip-text">Loved track toots are held and sent to Discord for approval. Click the confirm link in Discord to publish.</span></i>
+                    </label>
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" name="pu_release_announcement_enabled" value="1" {{ 'checked' if settings.get('pu_release_announcement_enabled', '0') == '1' }} onchange="this.form.submit()">
+                        Mastoferr — Version Updates & Releases
+                        <i class="info-tip">i<span class="tip-text">When you deploy a new version of Mastoferr, an announcement toot is drafted to the Post Queue with Discord confirmation.</span></i>
                     </label>
                 </div>
 
@@ -542,6 +547,27 @@
                     <label for="pu_books_finish_template" style="margin-top: 0.75rem;">Finished reading template <i class="info-tip">i<span class="tip-text">Custom template for "just finished" book toots. %Rating% is the star rating (e.g. ★★★★★), %RatingSuffix% includes the dash (e.g. " — ★★★★★"). Leave blank for default.</span></i></label>
                     <div class="template-vars">{% for v in ['%Title%','%Author%','%AuthorLine%','%Rating%','%RatingSuffix%','%Hashtags%'] %}<span class="var-chip" onclick="insertVar('pu_books_finish_template','{{ v }}')">{{ v }}</span>{% endfor %}</div>
                     <textarea id="pu_books_finish_template" name="pu_books_finish_template" rows="3" placeholder="Just finished reading: %Title% by %Author%%RatingSuffix%&#10;&#10;%Hashtags%">{{ settings.get('pu_books_finish_template', '') }}</textarea>
+                </div>
+
+                <div class="settings-section" style="margin-top: 1.5rem;">
+                    <label class="pu-section-toggle">
+                        <input type="checkbox" name="pu_release_announcement_enabled" value="1" {{ 'checked' if settings.get('pu_release_announcement_enabled', '0') == '1' }} onchange="toggleSection('release-fields', this.checked)">
+                        <h2>Mastoferr — Version Update Announcements <i class="info-tip">i<span class="tip-text">Automatically drafts an announcement toot to your Post Queue (and pings Discord) whenever you deploy a new version of Mastoferr.</span></i></h2>
+                    </label>
+                    <div id="release-fields" style="{{ '' if settings.get('pu_release_announcement_enabled', '0') == '1' else 'display:none;' }}">
+                        <label for="pu_release_hashtags">Hashtags</label>
+                        <p class="setup-hint" style="margin-bottom:0.4rem;">Space-separated hashtags added to release toots. Leave blank to use #Mastoferr #Mastodon #SelfHosted.</p>
+                        <input type="text" id="pu_release_hashtags" name="pu_release_hashtags" placeholder="#Mastoferr #Mastodon #SelfHosted" value="{{ settings.get('pu_release_hashtags', '') }}" oninput="renderPreview('pu_release_template','prev_release','pu_release_hashtags','release')">
+                        <label for="pu_release_template" style="margin-top: 0.75rem;">Post template</label>
+                        <p class="setup-hint" style="margin-bottom:0.4rem;">Customise the release announcement layout. Leave blank for default format.</p>
+                        <div class="template-vars">{% for v in ['%Version%','%Changelog%','%RepoUrl%','%Hashtags%'] %}<span class="var-chip" onclick="insertVar('pu_release_template','{{ v }}')">{{ v }}</span>{% endfor %}</div>
+                        <textarea id="pu_release_template" name="pu_release_template" rows="5" placeholder="🚀 Mastoferr v%Version% is live!&#10;&#10;%Changelog%&#10;&#10;%RepoUrl%&#10;%Hashtags%" oninput="renderPreview('pu_release_template','prev_release','pu_release_hashtags','release')">{{ settings.get('pu_release_template', '') }}</textarea>
+                        <div id="prev_release" class="toot-preview" style="display:none;"></div>
+                        <div style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.75rem;">
+                            <button type="button" class="btn btn-secondary" onclick="testReleaseAnnouncement()">Draft Test Announcement to Queue</button>
+                            <span id="release-test-status" style="font-size: 0.85rem;"></span>
+                        </div>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-sync" style="margin-top: 1.5rem;">Save Auto Toots</button>
@@ -748,11 +774,18 @@ const DEMO = {
         '%GenreTags:3%': '#Mythology #Fantasy #Fiction',
         '%Hashtags%': '{hashtags} #Mythology #Fantasy',
     },
+    release: {
+        '%Version%': '{{ version }}',
+        '%Changelog%': '• Automated version release announcements\n• Optional Web UI Login via Settings\n• Performance improvements and bug fixes',
+        '%RepoUrl%': 'https://github.com/brunopatuleia/mastoferr',
+        '%Hashtags%': '{hashtags}',
+    },
 };
 
 function renderPreview(taId, previewId, hashtagsFieldId, demoKey) {
     const ta = document.getElementById(taId);
     const preview = document.getElementById(previewId);
+    if (!ta || !preview) return;
     const tpl = ta.value.trim();
     if (!tpl) { preview.style.display = 'none'; return; }
     const demos = Object.assign({}, DEMO[demoKey]);
@@ -760,7 +793,7 @@ function renderPreview(taId, previewId, hashtagsFieldId, demoKey) {
         const htField = document.getElementById(hashtagsFieldId);
         const ht = htField ? htField.value.trim() : '';
         for (const k in demos) {
-            demos[k] = demos[k].replace('{hashtags}', ht || '#NowPlaying');
+            demos[k] = demos[k].replace('{hashtags}', ht || '#Mastoferr #Mastodon #SelfHosted');
         }
     }
     let out = tpl;
@@ -774,6 +807,7 @@ function renderPreview(taId, previewId, hashtagsFieldId, demoKey) {
  ['pu_star_template','prev_star',null,'star'],
  ['pu_abs_template','prev_abs','pu_abs_hashtags','abs'],
  ['pu_abs_finished_template','prev_abs_fin','pu_abs_finished_hashtags','abs_fin'],
+ ['pu_release_template','prev_release','pu_release_hashtags','release'],
 ].forEach(([ta, pv, ht, key]) => renderPreview(ta, pv, ht, key));
 
 const VAR_TIPS = {
@@ -795,6 +829,9 @@ const VAR_TIPS = {
     '%GenreTag%':       'Single genre hashtag\ne.g. #Folk',
     '%SongLink%':       'Universal music link via odesli\ne.g. https://song.link/…\n(requires MusicBrainz ID in Navidrome)',
     '%SimilarArtists%': 'Comma-separated list of similar artists from Last.fm',
+    '%Version%':        'Version number\ne.g. 1.4.3',
+    '%Changelog%':      'Highlights extracted from CHANGELOG.md',
+    '%RepoUrl%':        'GitHub repository URL',
 };
 document.querySelectorAll('.var-chip').forEach(el => {
     const tip = VAR_TIPS[el.textContent.trim()];
@@ -820,7 +857,34 @@ const TA_PREVIEW_MAP = {
     'pu_star_template':         ['prev_star', null, 'star'],
     'pu_abs_template':          ['prev_abs', 'pu_abs_hashtags', 'abs'],
     'pu_abs_finished_template': ['prev_abs_fin', 'pu_abs_finished_hashtags', 'abs_fin'],
+    'pu_release_template':      ['prev_release', 'pu_release_hashtags', 'release'],
 };
+
+function testReleaseAnnouncement() {
+    const statusEl = document.getElementById('release-test-status');
+    statusEl.style.color = 'var(--text-muted)';
+    statusEl.textContent = 'Creating test announcement in queue...';
+    fetch('/api/release/test', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-Token': document.cookie.split('; ').find(row => row.startsWith('tk_csrf='))?.split('=')[1] || ''
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            statusEl.style.color = 'var(--green)';
+            statusEl.textContent = '✓ ' + data.message;
+        } else {
+            statusEl.style.color = 'var(--red)';
+            statusEl.textContent = '✗ ' + (data.message || 'Failed');
+        }
+    })
+    .catch(e => {
+        statusEl.style.color = 'var(--red)';
+        statusEl.textContent = '✗ Request failed';
+    });
+}
 
 function insertVar(taId, variable) {
     const ta = document.getElementById(taId);

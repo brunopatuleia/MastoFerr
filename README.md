@@ -21,10 +21,11 @@ A self-hosted Mastodon activity archiver with full-text search, profile updater,
 - Discord confirmation flow before any auto-toot is posted
 - Follower tracking with follow/unfollow history
 - Weekly music recap post
+- Automated version release announcements with changelog highlights
 - Live log viewer at `/logs` with auto-refresh
 - AI-powered roast of your posting habits
 - Anonymous installation statistics (opt-out in Settings → Display)
-- **Login via Mastodon OAuth** — no passwords, no tokens to copy/paste
+- **Optional Login via Mastodon OAuth** — no passwords, no tokens to copy/paste
 - Dark, responsive web UI
 - Docker-ready (amd64 + arm64)
 

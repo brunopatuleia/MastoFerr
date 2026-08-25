@@ -18,14 +18,15 @@ import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from pathlib import Path
 from typing import Any, Optional
 
 import feedparser
 import requests
 from mastodon import Mastodon, MastodonError
 
-from app.config import APP_URL
-from app.database import can_post, get_all_settings, get_db, get_setting, log_confirmation_queued, record_post, set_setting, update_confirmation_log
+from app.config import APP_URL, GITHUB_REPO, VERSION
+from app.database import can_post, get_all_settings, get_db, get_setting, is_configured, log_confirmation_queued, record_post, set_setting, update_confirmation_log
 
 logger = logging.getLogger(__name__)
 
@@ -1170,6 +1171,123 @@ def _render_template(template: str, substitutions: dict) -> str:
     text = "\n".join(result_lines)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+
+def get_latest_changelog_highlights(max_items: int = 3, max_chars: int = 240) -> str:
+    """Parse CHANGELOG.md and extract key bullet points from the latest release."""
+    changelog_paths = [
+        Path(__file__).parent.parent / "CHANGELOG.md",
+        Path(__file__).parent / "CHANGELOG.md",
+        Path("/app/CHANGELOG.md"),
+    ]
+    content = ""
+    for p in changelog_paths:
+        if p.exists():
+            try:
+                content = p.read_text(encoding="utf-8")
+                break
+            except Exception:
+                pass
+    if not content:
+        return "• Performance improvements and feature updates."
+
+    lines = content.splitlines()
+    in_latest = False
+    bullets = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## ["):
+            if in_latest:
+                break  # Reached next version section
+            in_latest = True
+            continue
+        if in_latest:
+            if stripped.startswith("- "):
+                text = stripped[2:].strip()
+                # Clean markdown bold **text** -> text
+                text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+                if len(text) > 90:
+                    if " — " in text:
+                        text = text.split(" — ")[0]
+                    elif ". " in text:
+                        text = text.split(". ")[0]
+                    else:
+                        text = text[:87] + "..."
+                bullets.append(f"• {text}")
+                if len(bullets) >= max_items:
+                    break
+
+    if not bullets:
+        return "• Improvements and updates."
+
+    result = "\n".join(bullets)
+    if len(result) > max_chars:
+        result = result[:max_chars - 3] + "..."
+    return result
+
+
+def build_release_announcement_toot(version: str, template: str | None = None, hashtags: str | None = None) -> str:
+    """Construct the release announcement text for Mastodon."""
+    changelog = get_latest_changelog_highlights()
+    default_hashtags = hashtags.strip() if hashtags and hashtags.strip() else "#Mastoferr #Mastodon #SelfHosted"
+    repo_url = f"https://github.com/{GITHUB_REPO}"
+
+    tpl = template if template and template.strip() else (
+        "🚀 Mastoferr v%Version% is live!\n\n"
+        "%Changelog%\n\n"
+        "%RepoUrl%\n"
+        "%Hashtags%"
+    )
+    substitutions = {
+        "Version": version,
+        "Changelog": changelog,
+        "RepoUrl": repo_url,
+        "Hashtags": default_hashtags,
+    }
+    return _render_template(tpl, substitutions)
+
+
+def queue_release_announcement(version: str, force: bool = False) -> str | None:
+    """Check if the current version is new and queue an announcement toot with Discord notification."""
+    with get_db() as conn:
+        if not is_configured(conn):
+            return None
+        enabled = get_setting(conn, "pu_release_announcement_enabled") == "1"
+        last_version = get_setting(conn, "last_announced_version")
+        template = get_setting(conn, "pu_release_template")
+        hashtags = get_setting(conn, "pu_release_hashtags")
+        webhook_url = get_setting(conn, "discord_webhook_url") or ""
+
+        if not force:
+            if not enabled:
+                return None
+            # On first run, record the version without notifying
+            if not last_version:
+                set_setting(conn, "last_announced_version", version)
+                return None
+            if last_version == version:
+                return None
+
+        toot_text = build_release_announcement_toot(version, template=template, hashtags=hashtags)
+        label = f"Mastoferr Update (v{version})"
+        token = _queue_pending_toot(
+            label=label,
+            text=toot_text,
+            cover_bytes=None,
+            cover_mime="",
+            cover_desc="",
+            post_type="release_announcement",
+        )
+
+        if webhook_url:
+            _send_discord_confirmation(webhook_url, label, toot_text, f"{APP_URL}/queue")
+
+        if not force:
+            set_setting(conn, "last_announced_version", version)
+
+        logger.info(f"Queued release announcement toot for v{version}")
+        return token
 
 
 def _get_odesli_url(mbid: str) -> str:

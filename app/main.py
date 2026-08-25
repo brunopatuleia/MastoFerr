@@ -24,7 +24,7 @@ from mastodon import Mastodon
 
 from app.collector import run_full_sync
 from app.config import APP_ENV, APP_URL, GITHUB_REPO, MASTODON_ACCESS_TOKEN, MASTODON_INSTANCE, MEDIA_PATH, POLL_INTERVAL, VERSION
-from app.profile_updater import ProfileUpdater, get_pending_toot, list_pending_toots, pop_pending_toot
+from app.profile_updater import ProfileUpdater, get_pending_toot, list_pending_toots, pop_pending_toot, queue_release_announcement, build_release_announcement_toot
 from app.roast import generate_roast, _add_to_roast_history
 from app.database import (
     can_post,
@@ -341,6 +341,9 @@ async def lifespan(app: FastAPI):
         abs_on = get_setting(conn, "pu_abs_enabled") == "1"
         if (pu_on or abs_on) and is_configured(conn):
             profile_updater.start()
+
+    # Check for new version release announcement
+    threading.Thread(target=queue_release_announcement, args=(VERSION,), daemon=True).start()
 
     yield
 
@@ -1558,6 +1561,7 @@ AUTO_TOOTS_SETTINGS_KEYS = [
     "pu_album_hashtags", "pu_album_threshold",
     "pu_abs_hashtags", "pu_abs_interval",
     "pu_abs_finished_hashtags",
+    "pu_release_template", "pu_release_hashtags",
     "abs_public_url", "abs_share_expiry_hours",
     "discord_webhook_url",
 ]
@@ -1569,6 +1573,7 @@ AUTO_TOOTS_CHECKBOX_KEYS = [
     "pu_abs_enabled", "pu_abs_confirm",
     "pu_abs_finished_enabled", "pu_abs_finished_confirm",
     "pu_nd_star_toot_enabled", "pu_nd_star_confirm",
+    "pu_release_announcement_enabled",
 ]
 
 
@@ -1686,3 +1691,17 @@ async def api_tools_order(request: Request):
         with get_db() as conn:
             set_setting(conn, "pu_field_order", ",".join(order))
     return JSONResponse({"status": "ok"})
+
+
+@app.post("/api/release/test")
+async def api_test_release_announcement(request: Request):
+    """Test release announcement by drafting a toot to the queue and sending a Discord confirmation."""
+    if (auth := _require_auth_api(request)):
+        return auth
+    if csrf := await _require_csrf(request):
+        return csrf
+    token = queue_release_announcement(VERSION, force=True)
+    if token:
+        return JSONResponse({"status": "ok", "message": f"Draft announcement for v{VERSION} created in Post Queue!"})
+    return JSONResponse({"status": "error", "message": "Failed to queue release announcement (make sure your Mastodon account is connected)"}, status_code=400)
+

@@ -330,10 +330,21 @@ function renderTootCard(toot) {
             </div>
 
             <div class="deck-reply-box" id="reply-box-${toot.id}" style="display:none;">
-                <textarea class="reply-textarea" id="reply-input-${toot.id}" placeholder="Reply to @${escapeHtml(acct.acct)}..."></textarea>
+                <textarea class="reply-textarea" id="reply-input-${toot.id}" placeholder="Reply to @${escapeHtml(acct.acct)}... (Paste images with Ctrl+V)"></textarea>
+
+                <div class="compose-media-previews reply-media-previews" id="reply-media-${toot.id}" style="display:none;"></div>
+                <div class="compose-upload-status" id="reply-upload-status-${toot.id}" style="display:none;"></div>
+
+                <input type="file" id="reply-file-${toot.id}" multiple accept="image/*,video/*,audio/*" style="display:none;" onchange="handleReplyFileSelect('${toot.id}', event)">
+
                 <div class="reply-footer">
-                    <button class="btn btn-secondary btn-xs" onclick="closeInlineReply('${toot.id}')">Cancel</button>
-                    <button class="btn btn-primary btn-xs" onclick="submitReply('${toot.id}')">Reply</button>
+                    <div class="reply-tools">
+                        <button type="button" class="btn-tool" id="btn-reply-attach-${toot.id}" onclick="triggerReplyFileSelect('${toot.id}')" title="Attach media">📎 <span id="reply-attach-count-${toot.id}" class="attach-badge" style="display:none;">0</span></button>
+                    </div>
+                    <div class="reply-actions">
+                        <button class="btn btn-secondary btn-xs" onclick="closeInlineReply('${toot.id}')">Cancel</button>
+                        <button class="btn btn-primary btn-xs" id="reply-submit-btn-${toot.id}" onclick="submitReply('${toot.id}')">Reply</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -498,15 +509,166 @@ async function toggleBookmark(tootId) {
     }
 }
 
+let replyAttachedMedia = {};
+
 function openInlineReply(tootId, defaultHandle) {
     const box = document.getElementById(`reply-box-${tootId}`);
     const input = document.getElementById(`reply-input-${tootId}`);
     if (box && input) {
         box.style.display = 'block';
+        if (!replyAttachedMedia[tootId]) {
+            replyAttachedMedia[tootId] = [];
+        }
         if (!input.value.trim()) {
             input.value = `${defaultHandle} `;
         }
         input.focus();
+
+        // Bind paste and drag-drop handlers once per reply box
+        if (!input.dataset.boundMedia) {
+            input.dataset.boundMedia = 'true';
+            input.addEventListener('paste', (e) => handleReplyClipboardPaste(tootId, e));
+
+            box.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                box.classList.add('drag-over');
+            });
+            box.addEventListener('dragleave', () => {
+                box.classList.remove('drag-over');
+            });
+            box.addEventListener('drop', (e) => {
+                e.preventDefault();
+                box.classList.remove('drag-over');
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+                    Array.from(e.dataTransfer.files).forEach(file => uploadReplyMediaFile(tootId, file));
+                }
+            });
+        }
+    }
+}
+
+function triggerReplyFileSelect(tootId) {
+    const input = document.getElementById(`reply-file-${tootId}`);
+    if (input) input.click();
+}
+
+function handleReplyFileSelect(tootId, e) {
+    if (!e.target || !e.target.files) return;
+    const files = Array.from(e.target.files);
+    files.forEach(file => uploadReplyMediaFile(tootId, file));
+    e.target.value = '';
+}
+
+function handleReplyClipboardPaste(tootId, e) {
+    if (!e.clipboardData) return;
+    const items = e.clipboardData.items || [];
+    let hasImage = false;
+
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file' && (item.type.startsWith('image/') || item.type.startsWith('video/'))) {
+            const file = item.getAsFile();
+            if (file) {
+                hasImage = true;
+                uploadReplyMediaFile(tootId, file);
+            }
+        }
+    }
+
+    if (hasImage) {
+        showToast('📋 Media pasted into reply!');
+    }
+}
+
+async function uploadReplyMediaFile(tootId, file) {
+    if (!replyAttachedMedia[tootId]) {
+        replyAttachedMedia[tootId] = [];
+    }
+    if (replyAttachedMedia[tootId].length >= 4) {
+        showToast('⚠️ Maximum 4 attachments allowed per reply.');
+        return;
+    }
+
+    const statusEl = document.getElementById(`reply-upload-status-${tootId}`);
+    const submitBtn = document.getElementById(`reply-submit-btn-${tootId}`);
+
+    if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = `<span class="spinner"></span> Uploading ${escapeHtml(file.name || 'media')}...`;
+    }
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const resp = await fetch('/api/media/upload', {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await resp.json();
+
+        if (data.status === 'ok' && data.media) {
+            replyAttachedMedia[tootId].push(data.media);
+            renderReplyAttachedMedia(tootId);
+            showToast('✅ Attachment uploaded to reply!');
+        } else {
+            alert(data.message || 'Media upload failed');
+        }
+    } catch (err) {
+        alert('Upload error: ' + err.message);
+    } finally {
+        if (statusEl) statusEl.style.display = 'none';
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
+function renderReplyAttachedMedia(tootId) {
+    const previewsEl = document.getElementById(`reply-media-${tootId}`);
+    const badgeEl = document.getElementById(`reply-attach-count-${tootId}`);
+    const btnAttach = document.getElementById(`btn-reply-attach-${tootId}`);
+    const mediaList = replyAttachedMedia[tootId] || [];
+
+    if (!previewsEl) return;
+
+    if (mediaList.length === 0) {
+        previewsEl.style.display = 'none';
+        previewsEl.innerHTML = '';
+        if (badgeEl) badgeEl.style.display = 'none';
+        if (btnAttach) btnAttach.classList.remove('has-media');
+        return;
+    }
+
+    previewsEl.style.display = 'grid';
+    if (badgeEl) {
+        badgeEl.textContent = mediaList.length;
+        badgeEl.style.display = 'inline-block';
+    }
+    if (btnAttach) btnAttach.classList.add('has-media');
+
+    previewsEl.innerHTML = mediaList.map((m, idx) => `
+        <div class="compose-thumb-item">
+            <img src="${escapeHtml(m.preview_url || m.url)}" alt="${escapeHtml(m.description || '')}">
+            <button type="button" class="btn-remove-thumb" onclick="removeReplyMedia('${tootId}', ${idx})" title="Remove attachment">✖</button>
+            <button type="button" class="btn-alt-thumb ${m.description ? 'has-alt' : ''}" onclick="editReplyMediaAlt('${tootId}', ${idx})" title="${m.description ? 'Edit description' : 'Add image description'}">ALT</button>
+        </div>
+    `).join('');
+}
+
+function removeReplyMedia(tootId, index) {
+    if (replyAttachedMedia[tootId]) {
+        replyAttachedMedia[tootId].splice(index, 1);
+        renderReplyAttachedMedia(tootId);
+    }
+}
+
+function editReplyMediaAlt(tootId, index) {
+    const media = (replyAttachedMedia[tootId] || [])[index];
+    if (!media) return;
+    const desc = prompt('Enter description (alt text) for this image:', media.description || '');
+    if (desc !== null) {
+        media.description = desc.trim();
+        renderReplyAttachedMedia(tootId);
     }
 }
 
@@ -517,15 +679,18 @@ function closeInlineReply(tootId) {
 
 async function submitReply(tootId) {
     const input = document.getElementById(`reply-input-${tootId}`);
-    if (!input || !input.value.trim()) return;
+    const mediaIds = (replyAttachedMedia[tootId] || []).map(m => m.id);
 
-    const text = input.value.trim();
+    const text = input ? input.value.trim() : '';
+    if (!text && mediaIds.length === 0) return;
+
     try {
         const resp = await fetch('/api/compose', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 status: text,
+                media_ids: mediaIds,
                 in_reply_to_id: tootId,
                 visibility: 'public'
             })
@@ -533,7 +698,8 @@ async function submitReply(tootId) {
         const data = await resp.json();
         if (data.status === 'ok') {
             closeInlineReply(tootId);
-            input.value = '';
+            if (input) input.value = '';
+            delete replyAttachedMedia[tootId];
             showToast('💬 Reply published!');
             refreshAllColumns();
         } else {

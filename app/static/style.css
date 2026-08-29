@@ -1965,10 +1965,16 @@ h2 {
 
 .deck-reply-box {
     margin-top: 0.4rem;
-    padding: 0.4rem;
+    padding: 0.45rem;
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid var(--border);
     border-radius: 4px;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+
+.deck-reply-box.drag-over {
+    border-color: var(--accent);
+    background: rgba(108, 99, 255, 0.1);
 }
 
 .reply-textarea {
@@ -1990,9 +1996,22 @@ h2 {
 
 .reply-footer {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
     gap: 0.4rem;
-    margin-top: 0.3rem;
+    margin-top: 0.35rem;
+}
+
+.reply-tools {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.reply-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
 }
 
 /* Modal styles */

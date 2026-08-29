@@ -1730,6 +1730,291 @@ h2 {
     gap: 0.75rem;
 }
 
+/* ==========================================================================
+   Compose Column & Post Form
+   ========================================================================== */
+
+.deck-profile-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+}
+
+.deck-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--accent);
+}
+
+.deck-avatar-placeholder {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    border: 1px solid var(--border);
+}
+
+.deck-profile-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.deck-display-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.deck-acct {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.deck-compose-form {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.compose-cw-box {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.4rem;
+    margin-bottom: 0.2rem;
+}
+
+.compose-input-cw {
+    width: 100%;
+    background: rgba(255, 152, 0, 0.1);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+    border-radius: 4px;
+    padding: 0.35rem 0.5rem;
+    color: var(--orange);
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.compose-textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    resize: vertical;
+    min-height: 90px;
+    outline: none;
+    padding: 0.65rem 0.75rem;
+    box-sizing: border-box;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.compose-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.2);
+}
+
+.compose-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-top: 0.4rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.compose-tools {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
+.btn-tool {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    transition: all 0.15s;
+    line-height: 1;
+}
+
+.btn-tool:hover {
+    color: var(--text);
+    border-color: var(--accent);
+    background: var(--bg-hover);
+}
+
+.btn-tool.has-media {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(108, 99, 255, 0.1);
+}
+
+.btn-tool.active {
+    color: var(--orange);
+    border-color: var(--orange);
+    background: rgba(255, 152, 0, 0.1);
+}
+
+.compose-select-visibility {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 0.35rem 0.45rem;
+    font-size: 0.8rem;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+
+.compose-select-visibility:hover,
+.compose-select-visibility:focus {
+    border-color: var(--accent);
+}
+
+.compose-submit-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.compose-chars {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    min-width: 24px;
+    text-align: right;
+}
+
+.btn-publish-submit {
+    background: var(--accent, #6c63ff);
+    color: #ffffff !important;
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    box-shadow: 0 2px 8px rgba(108, 99, 255, 0.35);
+    transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.btn-publish-submit:hover:not(:disabled) {
+    background: #5b52e0;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(108, 99, 255, 0.5);
+}
+
+.btn-publish-submit:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.deck-side-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.4rem;
+}
+
+.deck-mini-stat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem 0.2rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.deck-mini-stat .val {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text);
+}
+
+.deck-mini-stat .lbl {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.deck-quick-links {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.deck-quick-links h3 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.deck-quick-links a {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.82rem;
+    padding: 0.2rem 0;
+    transition: color 0.15s;
+}
+
+.deck-quick-links a:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}
+
 .deck-col-content {
     flex: 1;
     overflow-y: auto;

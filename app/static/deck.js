@@ -464,7 +464,7 @@ function renderTootCard(toot, isThreadItem = false) {
             </div>
 
             <div class="deck-reply-box" id="reply-box-${toot.id}" style="display:none;">
-                <textarea class="reply-textarea" id="reply-input-${toot.id}" placeholder="Reply to @${escapeHtml(acct.acct)}... (Paste images with Ctrl+V)"></textarea>
+                <textarea class="reply-textarea" id="reply-input-${toot.id}" placeholder="Reply to @${escapeHtml(acct.acct)}..."></textarea>
 
                 <div class="compose-media-previews reply-media-previews" id="reply-media-${toot.id}" style="display:none;"></div>
                 <div class="compose-upload-status" id="reply-upload-status-${toot.id}" style="display:none;"></div>
@@ -634,7 +634,7 @@ function renderFocalTootCard(toot) {
             </div>
 
             <div class="deck-reply-box deck-focal-reply-box" id="reply-box-${toot.id}">
-                <textarea class="reply-textarea" id="reply-input-${toot.id}" placeholder="Reply to @${escapeHtml(acct.acct)}... (Paste images with Ctrl+V)"></textarea>
+                <textarea class="reply-textarea" id="reply-input-${toot.id}" placeholder="Reply to @${escapeHtml(acct.acct)}..."></textarea>
 
                 <div class="compose-media-previews reply-media-previews" id="reply-media-${toot.id}" style="display:none;"></div>
                 <div class="compose-upload-status" id="reply-upload-status-${toot.id}" style="display:none;"></div>

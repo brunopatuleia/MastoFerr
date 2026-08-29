@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Mastoferr{% endblock %}</title>
     <meta name="csrf-token" content="{{ csrf_token(request) }}">
-    <link rel="icon" type="image/png" href="/static/logo.png">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/png" href="/static/logo.png?v={{ APP_VERSION }}">
+    <link rel="stylesheet" href="/static/style.css?v={{ APP_VERSION }}">
     <script>
     (function () {
         const meta = document.querySelector('meta[name="csrf-token"]');
@@ -39,7 +39,7 @@
 <body>
     <aside class="main-sidebar" id="main-sidebar">
         <div class="nav-brand">
-            <a href="/"><img src="/static/logo.png" alt="Mastoferr" class="nav-logo"> Mastoferr
+            <a href="/"><img src="/static/logo.png?v={{ APP_VERSION }}" alt="Mastoferr" class="nav-logo"> Mastoferr
             {% if APP_ENV == 'beta' %}
             <span style="background:var(--orange);color:#fff;font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:4px;margin-left:0.4rem;vertical-align:middle;font-weight:bold;letter-spacing:0.05em;text-transform:uppercase;">Beta</span>
             {% endif %}

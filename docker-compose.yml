@@ -1,23 +1,19 @@
 services:
-  mastoferr:
-    image: ghcr.io/brunopatuleia/mastoferr:main
-    container_name: mastoferr
+  mastoferr-alpha:
+    build: .
+    image: mastoferr:alpha
+    container_name: mastoferr_alpha
     restart: unless-stopped
     init: true
     stop_grace_period: 10s
     ports:
-      - "127.0.0.1:6886:8080"
+      - "6886:8080"
+    environment:
+      - APP_ENV=alpha
     env_file:
       - .env
     volumes:
-      - ./data:/app/data
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "1.0"
-        reservations:
-          memory: 128M
+      - ./data-alpha:/app/data
 
   mastoferr-beta:
     image: ghcr.io/brunopatuleia/mastoferr:beta
@@ -26,7 +22,7 @@ services:
     init: true
     stop_grace_period: 10s
     ports:
-      - "127.0.0.1:6886:8080"
+      - "6886:8080"
     environment:
       - APP_ENV=beta
     env_file:
@@ -38,3 +34,23 @@ services:
         limits:
           memory: 512M
           cpus: "1.0"
+
+  mastoferr:
+    image: ghcr.io/brunopatuleia/mastoferr:main
+    container_name: mastoferr
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 10s
+    ports:
+      - "6886:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 128M

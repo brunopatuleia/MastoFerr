@@ -80,6 +80,7 @@ function createColumnElement(col, index) {
         bookmarks: '🔖',
         archive: '💬',
         trends: '📊',
+        thread: '🧵',
     };
 
     const icon = iconMap[col.type] || '📄';
@@ -87,7 +88,16 @@ function createColumnElement(col, index) {
     const isLastMovable = index === deckColumns.length - 1;
 
     let headerControls = '';
-    if (!col.permanent) {
+    if (col.type === 'thread') {
+        headerControls = `
+            <div class="deck-col-controls">
+                <button class="btn-col-action btn-col-back" onclick="removeColumn('${col.id}')" title="Back">← Back</button>
+                <button class="btn-col-action" onclick="cycleColumnWidth('${col.id}')" title="Change Width (${col.width || 380}px)">📏</button>
+                <button class="btn-col-action" onclick="refreshColumn('${col.id}')" title="Refresh Thread">🔄</button>
+                <button class="btn-col-action btn-col-close" onclick="removeColumn('${col.id}')" title="Close Thread">✖</button>
+            </div>
+        `;
+    } else if (!col.permanent) {
         headerControls = `
             <div class="deck-col-controls">
                 <button class="btn-col-action" onclick="moveColumn('${col.id}', -1)" title="Move Left" ${isFirstMovable ? 'disabled' : ''}>◀</button>
@@ -208,6 +218,8 @@ async function fetchColumnData(col) {
         url = `/api/deck/feed/archive?filter=${encodeURIComponent(col.filter || 'all')}`;
     } else if (col.type === 'trends') {
         url = `/api/deck/feed/trends`;
+    } else if (col.type === 'thread') {
+        url = `/api/deck/toot/${col.tootId}/context`;
     }
 
     try {
@@ -221,6 +233,11 @@ async function fetchColumnData(col) {
 
         if (col.type === 'trends') {
             renderTrendsColumn(contentEl, data);
+            return;
+        }
+
+        if (col.type === 'thread') {
+            renderThreadView(contentEl, data, col.id);
             return;
         }
 
@@ -240,7 +257,7 @@ async function fetchColumnData(col) {
             const filteredItems = activeFilter ? items.filter(n => n.type === activeFilter) : items;
             html = filteredItems.map(renderNotificationCard).join('');
         } else {
-            html = items.map(renderTootCard).join('');
+            html = items.map(t => renderTootCard(t)).join('');
         }
 
         contentEl.innerHTML = html;
@@ -249,7 +266,38 @@ async function fetchColumnData(col) {
     }
 }
 
-function renderTootCard(toot) {
+function handleCardClick(e, tootId) {
+    if (e.target.closest('a') || e.target.closest('button') || e.target.closest('textarea') || e.target.closest('input') || e.target.closest('.media-item') || e.target.closest('.deck-reply-box')) {
+        return;
+    }
+    openTootThread(tootId);
+}
+
+function openTootThread(tootId) {
+    let threadCol = deckColumns.find(c => c.type === 'thread');
+    if (threadCol) {
+        threadCol.tootId = tootId;
+        threadCol.title = 'Thread';
+    } else {
+        threadCol = {
+            type: 'thread',
+            id: 'col-thread',
+            title: 'Thread',
+            tootId: tootId,
+            width: 400,
+        };
+        deckColumns.push(threadCol);
+    }
+    saveColumns();
+    renderColumns();
+
+    setTimeout(() => {
+        const el = document.getElementById(threadCol.id);
+        if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' });
+    }, 120);
+}
+
+function renderTootCard(toot, isThreadItem = false) {
     const acct = toot.account || {};
     const hasCw = Boolean(toot.spoiler_text && toot.spoiler_text.trim());
     const cardId = `card-${toot.id || Math.random().toString(36).substring(7)}`;
@@ -292,7 +340,7 @@ function renderTootCard(toot) {
     const timeStr = formatRelativeTime(toot.created_at);
 
     return `
-        <div class="deck-card" id="${cardId}">
+        <div class="deck-card deck-card-clickable ${isThreadItem ? 'deck-card-thread' : ''}" id="${cardId}" onclick="handleCardClick(event, '${toot.id}')">
             ${reblogHeader}
             <div class="deck-card-header">
                 <a href="${escapeHtml(acct.url || '#')}" target="_blank" rel="noopener" class="deck-author-link">
@@ -349,6 +397,174 @@ function renderTootCard(toot) {
             </div>
         </div>
     `;
+}
+
+function renderThreadView(container, data, colId) {
+    const focal = data.focal || {};
+    const ancestors = data.ancestors || [];
+    const descendants = data.descendants || [];
+
+    let ancestorsHtml = '';
+    if (ancestors.length) {
+        ancestorsHtml = `<div class="thread-ancestors-list">` +
+            ancestors.map(a => renderTootCard(a, true)).join('') +
+        `</div>`;
+    }
+
+    let focalHtml = renderFocalTootCard(focal);
+
+    let descendantsHtml = '';
+    if (descendants.length) {
+        descendantsHtml = `<div class="thread-descendants-list">` +
+            descendants.map(d => renderTootCard(d, true)).join('') +
+        `</div>`;
+    }
+
+    container.innerHTML = `
+        <div class="deck-thread-container">
+            ${ancestorsHtml}
+            ${focalHtml}
+            ${descendantsHtml}
+        </div>
+    `;
+
+    // Initialize reply box under focal toot
+    const replyInput = container.querySelector(`#reply-input-${focal.id}`);
+    if (replyInput && !replyInput.value.trim()) {
+        const acct = focal.account || {};
+        replyInput.value = `@${acct.acct} `;
+    }
+}
+
+function renderFocalTootCard(toot) {
+    const acct = toot.account || {};
+    const hasCw = Boolean(toot.spoiler_text && toot.spoiler_text.trim());
+    const cardId = `focal-${toot.id || Math.random().toString(36).substring(7)}`;
+
+    let reblogHeader = '';
+    if (toot.is_reblog && toot.reblogged_by) {
+        reblogHeader = `
+            <div class="deck-reblog-header">
+                <span>🔁 ${escapeHtml(toot.reblogged_by.display_name || toot.reblogged_by.acct)} boosted</span>
+            </div>
+        `;
+    }
+
+    let mediaHtml = '';
+    if (toot.media_attachments && toot.media_attachments.length > 0) {
+        const count = Math.min(toot.media_attachments.length, 4);
+        mediaHtml = `<div class="media-grid media-count-${count}">`;
+        toot.media_attachments.slice(0, 4).forEach(m => {
+            const url = m.url || m.preview_url;
+            mediaHtml += `
+                <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="media-item">
+                    <img src="${escapeHtml(m.preview_url || url)}" alt="${escapeHtml(m.description || '')}" loading="lazy">
+                </a>
+            `;
+        });
+        mediaHtml += `</div>`;
+    }
+
+    let bodyContent = toot.content || '';
+    let cwHtml = '';
+    if (hasCw) {
+        cwHtml = `
+            <div class="deck-cw-banner">
+                <span>⚠️ ${escapeHtml(toot.spoiler_text)}</span>
+                <button class="btn-cw-show" onclick="toggleCardCw('${cardId}')">Show more</button>
+            </div>
+        `;
+    }
+
+    const fullDate = formatFullDate(toot.created_at);
+
+    return `
+        <div class="deck-card deck-focal-card" id="${cardId}">
+            ${reblogHeader}
+            <div class="deck-focal-header">
+                <a href="${escapeHtml(acct.url || '#')}" target="_blank" rel="noopener" class="deck-author-link">
+                    <img src="${escapeHtml(acct.avatar || '/static/logo.png')}" alt="" class="deck-focal-avatar">
+                    <div class="deck-author-meta">
+                        <span class="deck-focal-name">${escapeHtml(acct.display_name || acct.username || 'User')}</span>
+                        <span class="deck-author-handle">@${escapeHtml(acct.acct || '')}</span>
+                    </div>
+                </a>
+            </div>
+
+            ${cwHtml}
+            <div class="deck-focal-body ${hasCw ? 'cw-hidden' : ''}">
+                <div class="deck-focal-text">${bodyContent}</div>
+                ${mediaHtml}
+            </div>
+
+            <div class="deck-focal-date">
+                <span>${fullDate}</span>
+                <span class="deck-vis-badge">🌐 ${escapeHtml(toot.visibility || 'public')}</span>
+            </div>
+
+            <div class="deck-focal-counts">
+                <span><strong>${toot.reblogs_count || 0}</strong> Boosts</span>
+                <span><strong>${toot.favourites_count || 0}</strong> Favorites</span>
+            </div>
+
+            <div class="deck-card-actions deck-focal-actions">
+                <button class="btn-action btn-reply" onclick="focusFocalReply('${toot.id}')" title="Reply">
+                    💬 <span class="action-count">${toot.replies_count || ''}</span>
+                </button>
+                <button class="btn-action btn-boost ${toot.reblogged ? 'active' : ''}" id="boost-btn-${toot.id}" onclick="toggleBoost('${toot.id}')" title="Boost">
+                    🔁 <span class="action-count" id="boost-count-${toot.id}">${toot.reblogs_count || ''}</span>
+                </button>
+                <button class="btn-action btn-fav ${toot.favourited ? 'active' : ''}" id="fav-btn-${toot.id}" onclick="toggleFav('${toot.id}')" title="Favorite">
+                    ⭐ <span class="action-count" id="fav-count-${toot.id}">${toot.favourites_count || ''}</span>
+                </button>
+                <button class="btn-action btn-bm ${toot.bookmarked ? 'active' : ''}" id="bm-btn-${toot.id}" onclick="toggleBookmark('${toot.id}')" title="Bookmark">
+                    🔖
+                </button>
+                <a href="${escapeHtml(toot.url || '#')}" target="_blank" rel="noopener" class="btn-action btn-ext" title="Open in Mastodon">
+                    🔗
+                </a>
+            </div>
+
+            <div class="deck-reply-box deck-focal-reply-box" id="reply-box-${toot.id}">
+                <textarea class="reply-textarea" id="reply-input-${toot.id}" placeholder="Reply to @${escapeHtml(acct.acct)}... (Paste images with Ctrl+V)"></textarea>
+
+                <div class="compose-media-previews reply-media-previews" id="reply-media-${toot.id}" style="display:none;"></div>
+                <div class="compose-upload-status" id="reply-upload-status-${toot.id}" style="display:none;"></div>
+
+                <input type="file" id="reply-file-${toot.id}" multiple accept="image/*,video/*,audio/*" style="display:none;" onchange="handleReplyFileSelect('${toot.id}', event)">
+
+                <div class="reply-footer">
+                    <div class="reply-tools">
+                        <button type="button" class="btn-tool" id="btn-reply-attach-${toot.id}" onclick="triggerReplyFileSelect('${toot.id}')" title="Attach media">📎 <span id="reply-attach-count-${toot.id}" class="attach-badge" style="display:none;">0</span></button>
+                    </div>
+                    <div class="reply-actions">
+                        <button class="btn btn-primary btn-xs" id="reply-submit-btn-${toot.id}" onclick="submitReply('${toot.id}')">Reply</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function focusFocalReply(tootId) {
+    const input = document.getElementById(`reply-input-${tootId}`);
+    if (input) input.focus();
+}
+
+function formatFullDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (e) {
+        return dateStr;
+    }
 }
 
 function renderNotificationCard(notif) {

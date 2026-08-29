@@ -1312,6 +1312,31 @@ async def api_deck_feed_trends(request: Request):
     })
 
 
+@app.get("/api/deck/toot/{toot_id}/context")
+async def api_deck_toot_context(toot_id: str, request: Request):
+    """Fetch status thread/conversation context (ancestors, focal toot, descendants)."""
+    if (auth := _require_auth_api(request)):
+        return auth
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Mastodon account not connected."}, status_code=400)
+    try:
+        focal_status = client.status(toot_id)
+        context = client.status_context(toot_id)
+        ancestors = context.get("ancestors", []) if isinstance(context, dict) else []
+        descendants = context.get("descendants", []) if isinstance(context, dict) else []
+
+        return JSONResponse({
+            "status": "ok",
+            "focal": _format_status_for_deck(focal_status),
+            "ancestors": [_format_status_for_deck(a) for a in ancestors],
+            "descendants": [_format_status_for_deck(d) for d in descendants],
+        })
+    except Exception as e:
+        logger.exception(f"Failed to fetch context for toot {toot_id}")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
 @app.post("/api/deck/toot/{toot_id}/favourite")
 async def api_deck_favourite(toot_id: str, request: Request):
     if (auth := _require_auth_api(request)):

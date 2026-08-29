@@ -405,6 +405,23 @@ function renderTootCard(toot, isThreadItem = false) {
         `;
     }
 
+    let quoteHtml = '';
+    if (toot.quote) {
+        quoteHtml = renderQuoteEmbedHtml(toot.quote);
+    } else if (toot.card && (!toot.media_attachments || toot.media_attachments.length === 0)) {
+        const c = toot.card;
+        quoteHtml = `
+            <a href="${escapeHtml(c.url)}" target="_blank" rel="noopener" class="deck-link-card" onclick="event.stopPropagation();">
+                ${c.image ? `<img src="${escapeHtml(c.image)}" alt="" class="link-card-image">` : ''}
+                <div class="link-card-content">
+                    <span class="link-card-host">${escapeHtml(c.provider_name || 'Link')}</span>
+                    <div class="link-card-title">${escapeHtml(c.title || '')}</div>
+                    ${c.description ? `<div class="link-card-desc">${escapeHtml(c.description)}</div>` : ''}
+                </div>
+            </a>
+        `;
+    }
+
     const timeStr = formatRelativeTime(toot.created_at);
 
     return `
@@ -425,6 +442,7 @@ function renderTootCard(toot, isThreadItem = false) {
             <div class="deck-card-body ${hasCw ? 'cw-hidden' : ''}">
                 ${bodyContent}
                 ${mediaHtml}
+                ${quoteHtml}
             </div>
 
             <div class="deck-card-actions">
@@ -548,6 +566,23 @@ function renderFocalTootCard(toot) {
         `;
     }
 
+    let quoteHtml = '';
+    if (toot.quote) {
+        quoteHtml = renderQuoteEmbedHtml(toot.quote);
+    } else if (toot.card && (!toot.media_attachments || toot.media_attachments.length === 0)) {
+        const c = toot.card;
+        quoteHtml = `
+            <a href="${escapeHtml(c.url)}" target="_blank" rel="noopener" class="deck-link-card" onclick="event.stopPropagation();">
+                ${c.image ? `<img src="${escapeHtml(c.image)}" alt="" class="link-card-image">` : ''}
+                <div class="link-card-content">
+                    <span class="link-card-host">${escapeHtml(c.provider_name || 'Link')}</span>
+                    <div class="link-card-title">${escapeHtml(c.title || '')}</div>
+                    ${c.description ? `<div class="link-card-desc">${escapeHtml(c.description)}</div>` : ''}
+                </div>
+            </a>
+        `;
+    }
+
     const fullDate = formatFullDate(toot.created_at);
 
     return `
@@ -567,6 +602,7 @@ function renderFocalTootCard(toot) {
             <div class="deck-focal-body ${hasCw ? 'cw-hidden' : ''}">
                 <div class="deck-focal-text">${bodyContent}</div>
                 ${mediaHtml}
+                ${quoteHtml}
             </div>
 
             <div class="deck-focal-date">
@@ -1070,6 +1106,46 @@ function renderQuoteAttachedMedia() {
     `).join('');
 }
 
+function renderQuoteEmbedHtml(q) {
+    if (!q) return '';
+    const qAcc = q.account || {};
+    let qMediaHtml = '';
+    if (q.media_attachments && q.media_attachments.length > 0) {
+        const count = Math.min(q.media_attachments.length, 4);
+        qMediaHtml = `<div class="media-grid media-count-${count} quote-media-grid">`;
+        q.media_attachments.slice(0, 4).forEach(m => {
+            const url = m.url || m.preview_url;
+            qMediaHtml += `
+                <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="media-item" onclick="event.stopPropagation();">
+                    <img src="${escapeHtml(m.preview_url || url)}" alt="${escapeHtml(m.description || '')}" loading="lazy">
+                </a>
+            `;
+        });
+        qMediaHtml += `</div>`;
+    }
+
+    const timeStr = formatRelativeTime(q.created_at);
+
+    return `
+        <div class="deck-quote-embed deck-card-clickable" onclick="event.stopPropagation(); openTootThread('${q.id}')">
+            <div class="deck-quote-header">
+                <div class="deck-author-link" onclick="event.stopPropagation(); openUserProfile('${qAcc.id}', '${escapeHtml(qAcc.username || qAcc.acct)}')">
+                    <img src="${escapeHtml(qAcc.avatar || '/static/logo.png')}" alt="" class="deck-quote-avatar">
+                    <div class="deck-author-meta">
+                        <span class="deck-quote-name">${escapeHtml(qAcc.display_name || qAcc.username || 'User')}</span>
+                        <span class="deck-quote-handle">@${escapeHtml(qAcc.acct || '')}</span>
+                    </div>
+                </div>
+                <span class="deck-card-time">${timeStr}</span>
+            </div>
+            <div class="deck-quote-body">
+                <div class="deck-quote-text">${q.content || ''}</div>
+                ${qMediaHtml}
+            </div>
+        </div>
+    `;
+}
+
 function removeQuoteMedia(index) {
     quoteAttachedMedia.splice(index, 1);
     renderQuoteAttachedMedia();
@@ -1084,11 +1160,9 @@ async function submitQuoteToot(e) {
     const submitBtn = document.getElementById('quote-submit-btn');
 
     const commentary = textEl ? textEl.value.trim() : '';
-    const quoteUrl = activeBoostContext.url || `https://${activeBoostContext.tootId}`;
-
-    const status = commentary ? `${commentary}\n\n${quoteUrl}` : quoteUrl;
     const mediaIds = quoteAttachedMedia.map(m => m.id);
     const visibility = visEl ? visEl.value : 'public';
+    const quotedStatusId = activeBoostContext.tootId;
 
     if (submitBtn) submitBtn.disabled = true;
 
@@ -1097,7 +1171,8 @@ async function submitQuoteToot(e) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                status,
+                status: commentary,
+                quoted_status_id: quotedStatusId,
                 media_ids: mediaIds,
                 visibility
             })

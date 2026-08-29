@@ -1020,13 +1020,14 @@ async def api_compose_toot(request: Request):
     status_text = str(data.get("status", "")).strip()
     visibility = str(data.get("visibility", "public")).strip().lower()
     in_reply_to_id = data.get("in_reply_to_id")
+    quoted_status_id = data.get("quoted_status_id") or data.get("quote_id")
     sensitive = bool(data.get("sensitive", False))
     spoiler_text = str(data.get("spoiler_text", "")).strip() or None
 
     media_ids = data.get("media_ids") or []
 
-    if not status_text and not media_ids:
-        return JSONResponse({"status": "error", "message": "Toot content or media attachment cannot be empty."}, status_code=400)
+    if not status_text and not media_ids and not quoted_status_id:
+        return JSONResponse({"status": "error", "message": "Toot content, media attachment, or quoted post cannot be empty."}, status_code=400)
     if len(status_text) > 500:
         return JSONResponse({"status": "error", "message": "Toot exceeds 500 character limit."}, status_code=400)
     if visibility not in ("public", "unlisted", "private", "direct"):
@@ -1041,14 +1042,38 @@ async def api_compose_toot(request: Request):
 
     try:
         client = Mastodon(access_token=access_token, api_base_url=instance_url)
-        posted = client.status_post(
-            status=status_text,
-            in_reply_to_id=in_reply_to_id,
-            media_ids=media_ids if media_ids else None,
-            visibility=visibility,
-            sensitive=sensitive,
-            spoiler_text=spoiler_text,
-        )
+        params = {
+            "status": status_text,
+            "visibility": visibility,
+        }
+        if in_reply_to_id:
+            params["in_reply_to_id"] = str(in_reply_to_id)
+        if media_ids:
+            params["media_ids"] = media_ids
+        if sensitive:
+            params["sensitive"] = sensitive
+        if spoiler_text:
+            params["spoiler_text"] = spoiler_text
+        if quoted_status_id:
+            params["quoted_status_id"] = str(quoted_status_id)
+
+        try:
+            posted = client._Mastodon__api_request('POST', '/api/v1/statuses', params)
+        except Exception as e:
+            # Fallback if server doesn't support native quoted_status_id
+            if quoted_status_id:
+                logger.warning(f"Native quoted_status_id failed ({e}), falling back to standard status_post")
+                posted = client.status_post(
+                    status=status_text,
+                    in_reply_to_id=in_reply_to_id,
+                    media_ids=media_ids if media_ids else None,
+                    visibility=visibility,
+                    sensitive=sensitive,
+                    spoiler_text=spoiler_text,
+                )
+            else:
+                raise
+
         if isinstance(posted, dict):
             with get_db() as conn:
                 upsert_toot(conn, posted)
@@ -1137,6 +1162,49 @@ def _format_status_for_deck(s: dict | Any) -> dict:
                 "description": m.get("description") or "",
             })
 
+    quoted = target.get("quoted_status") or target.get("quote")
+    formatted_quote = None
+    if quoted and isinstance(quoted, dict):
+        q_acc = quoted.get("account") or {}
+        q_media = quoted.get("media_attachments") or []
+        q_formatted_media = []
+        for qm in q_media:
+            if isinstance(qm, dict):
+                q_formatted_media.append({
+                    "type": qm.get("type", "image"),
+                    "url": qm.get("url") or qm.get("remote_url") or "",
+                    "preview_url": qm.get("preview_url") or qm.get("url") or "",
+                    "description": qm.get("description") or "",
+                })
+        formatted_quote = {
+            "id": str(quoted.get("id", "")),
+            "url": quoted.get("url") or quoted.get("uri") or "",
+            "created_at": str(quoted.get("created_at", "")),
+            "content": quoted.get("content", ""),
+            "spoiler_text": quoted.get("spoiler_text", ""),
+            "account": {
+                "id": str(q_acc.get("id", "")),
+                "username": q_acc.get("username", ""),
+                "acct": q_acc.get("acct", ""),
+                "display_name": q_acc.get("display_name") or q_acc.get("username", ""),
+                "avatar": q_acc.get("avatar") or q_acc.get("avatar_static") or "",
+            },
+            "media_attachments": q_formatted_media,
+        }
+
+    card = target.get("card")
+    formatted_card = None
+    if card and isinstance(card, dict):
+        formatted_card = {
+            "url": card.get("url", ""),
+            "title": card.get("title", ""),
+            "description": card.get("description", ""),
+            "type": card.get("type", "link"),
+            "author_name": card.get("author_name", ""),
+            "provider_name": card.get("provider_name", ""),
+            "image": card.get("image", ""),
+        }
+
     return {
         "id": str(target.get("id", "")),
         "status_id": str(s.get("id", "")),
@@ -1162,10 +1230,13 @@ def _format_status_for_deck(s: dict | Any) -> dict:
         "replies_count": target.get("replies_count", 0),
         "reblogs_count": target.get("reblogs_count", 0),
         "favourites_count": target.get("favourites_count", 0),
+        "quotes_count": target.get("quotes_count", 0),
         "favourited": bool(target.get("favourited", False)),
         "reblogged": bool(target.get("reblogged", False)),
         "bookmarked": bool(target.get("bookmarked", False)),
         "media_attachments": formatted_media,
+        "quote": formatted_quote,
+        "card": formatted_card,
     }
 
 

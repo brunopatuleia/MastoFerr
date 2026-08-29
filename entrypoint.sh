@@ -14,4 +14,4 @@ echo "[entrypoint] data dir after:"
 ls -la /app/data/ 2>&1
 
 echo "[entrypoint] starting app as appuser"
-exec gosu appuser uvicorn app.main:app --host 0.0.0.0 --port 8080
+exec gosu appuser uvicorn app.main:app --host 0.0.0.0 --port 8080 --timeout-graceful-shutdown 5

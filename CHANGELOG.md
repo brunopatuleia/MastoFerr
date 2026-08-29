@@ -27,6 +27,12 @@ All notable changes to Mastoferr are documented here.
 - OAuth callback validates that the authorising account matches the stored `account_id` — a different account is rejected with an error.
 - `APP_PASSWORD` removed from `config.py` and `.env.example`.
 
+### Fixed & Hardened
+- **Container Signal Handling & Zombie Process Reaping (`tini`)** — Integrated `tini` as PID 1 subreaper in `Dockerfile` and `entrypoint.sh` to forward SIGTERM signals and reap zombie child processes left by healthcheck checks.
+- **Graceful Shutdown** — Added `--timeout-graceful-shutdown 5` to Uvicorn and reduced `ProfileUpdater` shutdown timeout from 20s to 3s to eliminate hanging container stops in Docker/Komodo.
+- **Optimized Healthcheck** — Healthcheck endpoint `/health` now uses an explicit 5s timeout and proper exit code handling.
+- Added `init: true` and `stop_grace_period: 10s` to `docker-compose.yml`.
+
 ### Infrastructure
 - Added `beta` branch: all development now lands on `beta` first. GitHub Actions builds and publishes `ghcr.io/brunopatuleia/mastoferr:beta` on every push to `beta`, and `:main` only when explicitly promoted.
 - `docker-compose.yml` updated: both `mastoferr` and `mastoferr-beta` services use port `6886` — run one at a time, swap when promoting.

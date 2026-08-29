@@ -1489,21 +1489,15 @@ class ProfileUpdater:
         self.running = True
         logger.info("Profile updater started")
 
-    def stop(self):
+    def stop(self, timeout: float = 3.0):
         if not self.running:
             return
         self._stop_event.set()
         self.running = False
-        # Wait for the thread to actually finish before returning.  Without this,
-        # stop()+start() on settings-save can leave two threads alive at the same
-        # time and both fire duplicate toots.  HTTP calls inside the loop can take
-        # up to ~15 s so we wait that long; if the thread is still alive after that
-        # we log a warning and proceed — the stop-event is already set so it will
-        # exit on its next iteration.
         if self._thread is not None and self._thread.is_alive():
-            self._thread.join(timeout=20)
+            self._thread.join(timeout=timeout)
         if self._thread is not None and self._thread.is_alive():
-            logger.warning("Profile updater: old thread still alive after 20 s stop wait")
+            logger.warning("Profile updater: worker thread still stopping asynchronously")
         logger.info("Profile updater stopped")
 
     def get_status(self) -> dict:

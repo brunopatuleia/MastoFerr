@@ -3,6 +3,8 @@ services:
     image: ghcr.io/brunopatuleia/mastoferr:main
     container_name: mastoferr
     restart: unless-stopped
+    init: true
+    stop_grace_period: 10s
     ports:
       - "127.0.0.1:6886:8080"
     env_file:
@@ -21,6 +23,8 @@ services:
     image: ghcr.io/brunopatuleia/mastoferr:beta
     container_name: mastoferr_beta
     restart: unless-stopped
+    init: true
+    stop_grace_period: 10s
     ports:
       - "127.0.0.1:6886:8080"
     environment:

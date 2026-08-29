@@ -1,0 +1,519 @@
+{% extends "base.html" %}
+{% from "media.html" import show_media %}
+{% block title %}Deck - Mastoferr{% endblock %}
+
+{% block content %}
+<div class="deck-layout">
+
+    <div class="deck-toolbar">
+        <div class="deck-title">
+            <h1>&#128450; Deck View</h1>
+            <span class="deck-subtitle">Multi-column real-time workspace</span>
+        </div>
+        <div class="deck-actions">
+            <div id="deck-sync-status" class="sync-status" style="display:none;"></div>
+            <button class="btn btn-sync btn-sm" onclick="triggerSync()">&#8635; Sync</button>
+            <button class="btn btn-secondary btn-sm" onclick="refreshAllColumns()" title="Refresh all deck columns">&#8634; Refresh All</button>
+        </div>
+    </div>
+
+    <div class="deck-scroll-wrapper" id="deck-scroll-wrapper">
+
+        <!-- Column 0: Compose & Account -->
+        <div class="deck-col deck-compose-col">
+            <div class="deck-col-header">
+                <div class="deck-col-title">
+                    <span class="deck-col-icon">&#9997;</span>
+                    <h2>Compose</h2>
+                </div>
+            </div>
+            
+            <div class="deck-col-body">
+                <div class="deck-profile-card">
+                    {% if account.avatar %}
+                    <img src="{{ account.avatar }}" alt="{{ account.display_name }}" class="deck-avatar">
+                    {% else %}
+                    <div class="deck-avatar-placeholder">&#128100;</div>
+                    {% endif %}
+                    <div class="deck-profile-info">
+                        <div class="deck-display-name">{{ account.display_name }}</div>
+                        <div class="deck-acct">@{{ account.acct }}</div>
+                    </div>
+                </div>
+
+                <form id="deck-compose-form" class="deck-compose-form" onsubmit="submitDeckToot(event)">
+                    <div class="compose-cw-box" id="compose-cw-box" style="display:none;">
+                        <input type="text" id="compose-spoiler" class="compose-input-cw" placeholder="Write your warning here...">
+                    </div>
+
+                    <textarea id="compose-text" class="compose-textarea" placeholder="What's on your mind?" rows="5" maxlength="500" required oninput="updateCharCount()"></textarea>
+
+                    <div class="compose-footer">
+                        <div class="compose-tools">
+                            <button type="button" class="btn-tool" id="btn-cw-toggle" onclick="toggleCW()" title="Content Warning">&#9888; CW</button>
+                            <select id="compose-visibility" class="compose-select-visibility" title="Visibility">
+                                <option value="public" {% if default_visibility == 'public' %}selected{% endif %}>&#127760; Public</option>
+                                <option value="unlisted" {% if default_visibility == 'unlisted' %}selected{% endif %}>&#128275; Unlisted</option>
+                                <option value="private" {% if default_visibility == 'private' %}selected{% endif %}>&#128274; Followers only</option>
+                                <option value="direct" {% if default_visibility == 'direct' %}selected{% endif %}>&#9993; Direct</option>
+                            </select>
+                        </div>
+                        <div class="compose-submit-wrap">
+                            <span id="compose-chars" class="compose-chars">500</span>
+                            <button type="submit" id="compose-submit-btn" class="btn btn-primary btn-sm">&#128640; Publish</button>
+                        </div>
+                    </div>
+                    <div id="compose-feedback" class="compose-feedback" style="display:none;"></div>
+                </form>
+
+                <div class="deck-side-stats">
+                    <div class="deck-mini-stat">
+                        <span class="val">{{ stats.toots }}</span>
+                        <span class="lbl">Toots</span>
+                    </div>
+                    <div class="deck-mini-stat">
+                        <span class="val">{{ stats.notifications }}</span>
+                        <span class="lbl">Notifs</span>
+                    </div>
+                    <div class="deck-mini-stat">
+                        <span class="val">{{ stats.favorites }}</span>
+                        <span class="lbl">Favs</span>
+                    </div>
+                    <div class="deck-mini-stat">
+                        <span class="val">{{ stats.bookmarks }}</span>
+                        <span class="lbl">Saved</span>
+                    </div>
+                </div>
+
+                <div class="deck-quick-links">
+                    <h3>Quick Shortcuts</h3>
+                    <a href="/toots">&#128172; Full Toots Archive &rarr;</a>
+                    <a href="/notifications">&#128276; All Notifications &rarr;</a>
+                    <a href="/followers">&#128101; Followers & Stalkers &rarr;</a>
+                    <a href="/queue">&#9203; Post Queue &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Column 1: Toots (Home Feed) -->
+        <div class="deck-col" id="col-toots">
+            <div class="deck-col-header">
+                <div class="deck-col-title">
+                    <span class="deck-col-icon">&#128172;</span>
+                    <h2>Toots</h2>
+                    <span class="deck-badge" id="badge-toots-count">{{ total_toots }}</span>
+                </div>
+                <button class="deck-col-refresh" onclick="refreshColumn('toots')" title="Refresh column">&#8634;</button>
+            </div>
+            <div class="deck-filter-bar">
+                <button class="deck-pill active" onclick="setColumnFilter('toots', 'all', this)">All</button>
+                <button class="deck-pill" onclick="setColumnFilter('toots', 'posts', this)">Posts</button>
+                <button class="deck-pill" onclick="setColumnFilter('toots', 'replies', this)">Replies</button>
+                <button class="deck-pill" onclick="setColumnFilter('toots', 'boosts', this)">Boosts</button>
+            </div>
+            <div class="deck-col-content" id="deck-toots-list">
+                {% if toots %}
+                    {% for toot in toots %}
+                    <div class="deck-card">
+                        <div class="deck-card-meta">
+                            <span class="date">{{ toot.created_at[:16].replace('T', ' ') }}</span>
+                            {% if toot.reblog_id %}
+                            <span class="badge badge-boost">Boost</span>
+                            {% elif toot.in_reply_to_id %}
+                            <span class="badge badge-reply">Reply</span>
+                            {% endif %}
+                            <span class="visibility">{{ toot.visibility }}</span>
+                        </div>
+                        <div class="deck-card-body">
+                            {% if toot.reblog_content %}
+                                <div class="reblog-info">Boosted from @{{ toot.reblog_account }}</div>
+                                {{ toot.reblog_content | safe }}
+                            {% else %}
+                                {{ toot.content | safe }}
+                            {% endif %}
+                        </div>
+                        {{ show_media(toot.media_attachments) }}
+                        <div class="deck-card-footer">
+                            <span title="Favorites">&#9733; {{ toot.favourites_count }}</span>
+                            <span title="Boosts">&#8635; {{ toot.reblogs_count }}</span>
+                            <span title="Replies">&#9993; {{ toot.replies_count }}</span>
+                            <a href="/toot/{{ toot.id }}" target="_blank">Details &rarr;</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="deck-empty">No toots found.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Column 2: Notifications -->
+        <div class="deck-col" id="col-notifications">
+            <div class="deck-col-header">
+                <div class="deck-col-title">
+                    <span class="deck-col-icon">&#128276;</span>
+                    <h2>Notifications</h2>
+                    <span class="deck-badge" id="badge-notifs-count">{{ total_notifs }}</span>
+                </div>
+                <button class="deck-col-refresh" onclick="refreshColumn('notifications')" title="Refresh column">&#8634;</button>
+            </div>
+            <div class="deck-filter-bar">
+                <button class="deck-pill active" onclick="setColumnFilter('notifications', '', this)">All</button>
+                <button class="deck-pill" onclick="setColumnFilter('notifications', 'mention', this)">Mentions</button>
+                <button class="deck-pill" onclick="setColumnFilter('notifications', 'favourite', this)">Favorites</button>
+                <button class="deck-pill" onclick="setColumnFilter('notifications', 'reblog', this)">Boosts</button>
+                <button class="deck-pill" onclick="setColumnFilter('notifications', 'follow', this)">Follows</button>
+            </div>
+            <div class="deck-col-content" id="deck-notifications-list">
+                {% if notifications %}
+                    {% for notif in notifications %}
+                    <div class="deck-card">
+                        <div class="deck-card-meta">
+                            <span class="date">{{ notif.created_at[:16].replace('T', ' ') }}</span>
+                            <span class="badge badge-{{ notif.type }}">{{ notif.type }}</span>
+                        </div>
+                        <div class="deck-notif-account">
+                            {% if notif.account_avatar %}
+                            <img src="{{ notif.account_avatar }}" alt="" class="avatar">
+                            {% endif %}
+                            <div>
+                                <strong>{{ notif.account_display_name or notif.account_acct }}</strong>
+                                <div class="acct">@{{ notif.account_acct }}</div>
+                            </div>
+                        </div>
+                        {% if notif.status_content %}
+                        <div class="deck-card-body notif-body">
+                            {{ notif.status_content | safe }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="deck-empty">No notifications yet.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Column 3: Favorites -->
+        <div class="deck-col" id="col-favorites">
+            <div class="deck-col-header">
+                <div class="deck-col-title">
+                    <span class="deck-col-icon">&#11088;</span>
+                    <h2>Favorites</h2>
+                    <span class="deck-badge">{{ total_favs }}</span>
+                </div>
+                <button class="deck-col-refresh" onclick="refreshColumn('favorites')" title="Refresh column">&#8634;</button>
+            </div>
+            <div class="deck-col-content" id="deck-favorites-list">
+                {% if favorites %}
+                    {% for fav in favorites %}
+                    <div class="deck-card">
+                        <div class="deck-card-meta">
+                            <span class="date">{{ fav.created_at[:16].replace('T', ' ') }}</span>
+                            <span class="acct">@{{ fav.account_acct }}</span>
+                        </div>
+                        <div class="deck-card-body">
+                            {{ fav.content | safe }}
+                        </div>
+                        {{ show_media(fav.media_attachments) }}
+                        <div class="deck-card-footer">
+                            <a href="{{ fav.url }}" target="_blank" rel="noopener">Open in Mastodon &rarr;</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="deck-empty">No favorited posts yet.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Column 4: Bookmarks -->
+        <div class="deck-col" id="col-bookmarks">
+            <div class="deck-col-header">
+                <div class="deck-col-title">
+                    <span class="deck-col-icon">&#128278;</span>
+                    <h2>Bookmarks</h2>
+                    <span class="deck-badge">{{ total_bms }}</span>
+                </div>
+                <button class="deck-col-refresh" onclick="refreshColumn('bookmarks')" title="Refresh column">&#8634;</button>
+            </div>
+            <div class="deck-col-content" id="deck-bookmarks-list">
+                {% if bookmarks %}
+                    {% for bm in bookmarks %}
+                    <div class="deck-card">
+                        <div class="deck-card-meta">
+                            <span class="date">{{ bm.created_at[:16].replace('T', ' ') }}</span>
+                            <span class="acct">@{{ bm.account_acct }}</span>
+                        </div>
+                        <div class="deck-card-body">
+                            {{ bm.content | safe }}
+                        </div>
+                        {{ show_media(bm.media_attachments) }}
+                        <div class="deck-card-footer">
+                            <a href="{{ bm.url }}" target="_blank" rel="noopener">Open in Mastodon &rarr;</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="deck-empty">No bookmarked posts yet.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Column 5: Trends & Post Queue -->
+        <div class="deck-col" id="col-trends">
+            <div class="deck-col-header">
+                <div class="deck-col-title">
+                    <span class="deck-col-icon">&#128293;</span>
+                    <h2>Trends & Queue</h2>
+                </div>
+                <button class="deck-col-refresh" onclick="refreshColumn('queue')" title="Refresh column">&#8634;</button>
+            </div>
+            <div class="deck-col-content">
+                <!-- Post Queue Subsection -->
+                <div class="deck-sub-section">
+                    <div class="deck-sub-title">
+                        <span>&#9203; Pending Post Queue</span>
+                        <a href="/queue" class="deck-sub-link">Manage &rarr;</a>
+                    </div>
+                    {% if queue_items %}
+                        <div class="deck-queue-list" id="deck-queue-list">
+                            {% for item in queue_items %}
+                            <div class="deck-queue-item">
+                                <div class="queue-item-meta">
+                                    <span class="badge badge-toot">{{ item.post_type or 'queue' }}</span>
+                                    <span class="date">{{ item.created_at[:16].replace('T', ' ') if item.created_at else 'pending' }}</span>
+                                </div>
+                                <div class="queue-item-text">{{ item.toot_text or item.text or '' }}</div>
+                                <div class="queue-item-actions">
+                                    <a href="/confirm-toot/{{ item.token }}" class="btn btn-primary btn-xs">Approve &rarr;</a>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="deck-empty-inline">&#10003; No pending toots in queue</div>
+                    {% endif %}
+                </div>
+
+                <!-- Trending Hashtags Subsection -->
+                <div class="deck-sub-section" style="margin-top: 1.25rem;">
+                    <div class="deck-sub-title">
+                        <span>&#35; Top Hashtags</span>
+                        <a href="/hashtags" class="deck-sub-link">All Tags &rarr;</a>
+                    </div>
+                    {% if hashtags %}
+                        <div class="deck-hashtags-cloud">
+                            {% for tag in hashtags %}
+                            <a href="/search?q=%23{{ tag.name }}" class="deck-hashtag-chip">
+                                <span class="tag-hash">&#35;</span>{{ tag.name }}
+                                <span class="tag-count">{{ tag.count }}</span>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="deck-empty-inline">No hashtags recorded yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+let currentColumnFilters = {
+    toots: 'all',
+    notifications: ''
+};
+
+function toggleCW() {
+    const box = document.getElementById('compose-cw-box');
+    const btn = document.getElementById('btn-cw-toggle');
+    if (box.style.display === 'none') {
+        box.style.display = 'block';
+        btn.classList.add('active');
+        document.getElementById('compose-spoiler').focus();
+    } else {
+        box.style.display = 'none';
+        btn.classList.remove('active');
+        document.getElementById('compose-spoiler').value = '';
+    }
+}
+
+function updateCharCount() {
+    const text = document.getElementById('compose-text').value;
+    const remaining = 500 - text.length;
+    const counter = document.getElementById('compose-chars');
+    counter.textContent = remaining;
+    if (remaining < 0) {
+        counter.style.color = 'var(--red)';
+    } else if (remaining < 50) {
+        counter.style.color = 'var(--orange)';
+    } else {
+        counter.style.color = 'var(--text-muted)';
+    }
+}
+
+async function submitDeckToot(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('compose-submit-btn');
+    const feedback = document.getElementById('compose-feedback');
+    const text = document.getElementById('compose-text').value.trim();
+    const visibility = document.getElementById('compose-visibility').value;
+    const spoiler = document.getElementById('compose-spoiler') ? document.getElementById('compose-spoiler').value.trim() : '';
+
+    if (!text) return;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Publishing...';
+    feedback.style.display = 'none';
+
+    try {
+        const res = await fetch('/api/compose', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                status: text,
+                visibility: visibility,
+                spoiler_text: spoiler,
+                sensitive: !!spoiler
+            })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'ok') {
+            document.getElementById('compose-text').value = '';
+            updateCharCount();
+            if (document.getElementById('compose-spoiler')) {
+                document.getElementById('compose-spoiler').value = '';
+                document.getElementById('compose-cw-box').style.display = 'none';
+                document.getElementById('btn-cw-toggle').classList.remove('active');
+            }
+            feedback.className = 'compose-feedback success';
+            feedback.textContent = '✓ Toot published successfully!';
+            feedback.style.display = 'block';
+            setTimeout(() => { feedback.style.display = 'none'; }, 4000);
+            refreshColumn('toots');
+        } else {
+            feedback.className = 'compose-feedback error';
+            feedback.textContent = '✗ ' + (data.message || 'Failed to publish toot');
+            feedback.style.display = 'block';
+        }
+    } catch (err) {
+        feedback.className = 'compose-feedback error';
+        feedback.textContent = '✗ Network error: ' + err.message;
+        feedback.style.display = 'block';
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🚀 Publish';
+    }
+}
+
+function setColumnFilter(col, filterVal, btnElem) {
+    currentColumnFilters[col] = filterVal;
+    if (btnElem && btnElem.parentElement) {
+        btnElem.parentElement.querySelectorAll('.deck-pill').forEach(p => p.classList.remove('active'));
+        btnElem.classList.add('active');
+    }
+    refreshColumn(col);
+}
+
+async function refreshColumn(col) {
+    const listElem = document.getElementById(`deck-${col}-list`);
+    if (!listElem) return;
+    
+    const filter = currentColumnFilters[col] || '';
+    listElem.style.opacity = '0.5';
+
+    try {
+        const res = await fetch(`/api/deck/column/${col}?filter=${encodeURIComponent(filter)}`);
+        const data = await res.json();
+        if (res.ok && data.items) {
+            renderColumnItems(col, data.items);
+            const badge = document.getElementById(`badge-${col}-count`);
+            if (badge && data.total !== undefined) badge.textContent = data.total;
+        }
+    } catch (e) {
+        console.error(`Failed to refresh column ${col}:`, e);
+    } finally {
+        listElem.style.opacity = '1';
+    }
+}
+
+function refreshAllColumns() {
+    ['toots', 'notifications', 'favorites', 'bookmarks', 'queue'].forEach(col => refreshColumn(col));
+}
+
+function renderColumnItems(col, items) {
+    const container = document.getElementById(`deck-${col}-list`);
+    if (!container) return;
+
+    if (!items || items.length === 0) {
+        container.innerHTML = `<div class="deck-empty">No ${col} found.</div>`;
+        return;
+    }
+
+    let html = '';
+    if (col === 'toots') {
+        items.forEach(t => {
+            const dateStr = (t.created_at || '').substring(0, 16).replace('T', ' ');
+            const boostBadge = t.reblog_id ? '<span class="badge badge-boost">Boost</span>' : (t.in_reply_to_id ? '<span class="badge badge-reply">Reply</span>' : '');
+            const bodyContent = t.reblog_content ? `<div class="reblog-info">Boosted from @${t.reblog_account}</div>${t.reblog_content}` : (t.content || '');
+            html += `
+                <div class="deck-card">
+                    <div class="deck-card-meta">
+                        <span class="date">${dateStr}</span>
+                        ${boostBadge}
+                        <span class="visibility">${t.visibility || 'public'}</span>
+                    </div>
+                    <div class="deck-card-body">${bodyContent}</div>
+                    <div class="deck-card-footer">
+                        <span title="Favorites">★ ${t.favourites_count || 0}</span>
+                        <span title="Boosts">↻ ${t.reblogs_count || 0}</span>
+                        <span title="Replies">✉ ${t.replies_count || 0}</span>
+                        <a href="/toot/${t.id}" target="_blank">Details &rarr;</a>
+                    </div>
+                </div>`;
+        });
+    } else if (col === 'notifications') {
+        items.forEach(n => {
+            const dateStr = (n.created_at || '').substring(0, 16).replace('T', ' ');
+            const avatarHtml = n.account_avatar ? `<img src="${n.account_avatar}" alt="" class="avatar">` : '';
+            const statusHtml = n.status_content ? `<div class="deck-card-body notif-body">${n.status_content}</div>` : '';
+            html += `
+                <div class="deck-card">
+                    <div class="deck-card-meta">
+                        <span class="date">${dateStr}</span>
+                        <span class="badge badge-${n.type}">${n.type}</span>
+                    </div>
+                    <div class="deck-notif-account">
+                        ${avatarHtml}
+                        <div>
+                            <strong>${n.account_display_name || n.account_acct}</strong>
+                            <div class="acct">@${n.account_acct}</div>
+                        </div>
+                    </div>
+                    ${statusHtml}
+                </div>`;
+        });
+    } else if (col === 'favorites' || col === 'bookmarks') {
+        items.forEach(item => {
+            const dateStr = (item.created_at || '').substring(0, 16).replace('T', ' ');
+            html += `
+                <div class="deck-card">
+                    <div class="deck-card-meta">
+                        <span class="date">${dateStr}</span>
+                        <span class="acct">@${item.account_acct}</span>
+                    </div>
+                    <div class="deck-card-body">${item.content || ''}</div>
+                    <div class="deck-card-footer">
+                        <a href="${item.url}" target="_blank" rel="noopener">Open in Mastodon &rarr;</a>
+                    </div>
+                </div>`;
+        });
+    }
+    container.innerHTML = html;
+}
+</script>
+{% endblock %}

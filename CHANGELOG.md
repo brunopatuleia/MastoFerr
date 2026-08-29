@@ -14,6 +14,7 @@ All notable changes to Mastoferr are documented here.
 - Parameterized SQLite date window queries in `get_frequent_words` and `get_hashtag_counts`.
 
 ### Added
+- **Mastodon Multi-Column Deck View (`/deck`)** — A multi-column workspace inspired by Mastodon's Advanced Web Interface / TweetDeck layout. Features a horizontal scrolling multi-column view with independent columns for live toot composing (with CW toggle, visibility picker, and 500-character countdown), your toots (filterable by All, Posts, Replies, Boosts), real-time notifications (with sub-filters for Mentions, Favorites, Boosts, Follows), favorited posts, bookmarked toots, and trending hashtags with pending post queue status.
 - **Automated Version Update Announcements** — Whenever Mastoferr is updated to a new version, an announcement toot is automatically drafted with extracted highlights from `CHANGELOG.md` and queued in your Post Queue (with Discord confirmation if enabled). You can preview, edit, approve, or dismiss the toot before it's published to Mastodon. Configurable and testable in **Settings → Auto Toots**.
 
 ### Changed

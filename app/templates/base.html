@@ -47,6 +47,7 @@
         </div>
         <nav class="sidebar-nav">
             <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
+            <a href="/deck" class="{% if request.url.path == '/deck' %}active{% endif %}">Deck</a>
             <div class="sidebar-nav-sep"></div>
             <a href="/toots" class="{% if request.url.path == '/toots' %}active{% endif %}">Toots</a>
             <a href="/notifications" class="{% if request.url.path == '/notifications' %}active{% endif %}">Notifs</a>

@@ -439,6 +439,25 @@ def get_toots(conn: sqlite3.Connection, page: int = 1, per_page: int = 20) -> tu
     return [dict(r) for r in rows], total
 
 
+def get_filtered_toots(conn: sqlite3.Connection, page: int = 1, per_page: int = 20, filter_type: str = "all") -> tuple[list, int]:
+    offset = (page - 1) * per_page
+    where = ""
+    params: list = []
+    if filter_type == "posts":
+        where = "WHERE reblog_id IS NULL AND in_reply_to_id IS NULL"
+    elif filter_type == "replies":
+        where = "WHERE in_reply_to_id IS NOT NULL"
+    elif filter_type == "boosts":
+        where = "WHERE reblog_id IS NOT NULL"
+
+    total = conn.execute(f"SELECT COUNT(*) as c FROM toots {where}", params).fetchone()["c"]
+    rows = conn.execute(
+        f"SELECT * FROM toots {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        (*params, per_page, offset),
+    ).fetchall()
+    return [dict(r) for r in rows], total
+
+
 def get_notifications(conn: sqlite3.Connection, page: int = 1, per_page: int = 20, type_filter: str = "") -> tuple[list, int]:
     if type_filter:
         total = conn.execute("SELECT COUNT(*) as c FROM notifications WHERE type=?", (type_filter,)).fetchone()["c"]

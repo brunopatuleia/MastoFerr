@@ -47,6 +47,8 @@ from app.database import (
     get_stats,
     get_toot_detail,
     get_toots,
+    get_filtered_toots,
+    upsert_toot,
     get_topic_counts,
     get_top_repliers,
     get_top_replied_to,
@@ -961,6 +963,125 @@ async def index(request: Request):
         "roast": roast,
         "instance_url": settings.get("instance_url", ""),
     })
+
+
+@app.get("/deck", response_class=HTMLResponse)
+async def deck_page(request: Request):
+    """Render the Mastodon Multi-Column Deck interface."""
+    redirect = _require_setup(request)
+    if redirect:
+        return redirect
+    with get_db() as conn:
+        settings = get_all_settings(conn)
+        account = {
+            "id": settings.get("account_id", ""),
+            "acct": settings.get("account_acct", "you"),
+            "display_name": settings.get("account_display_name", "") or settings.get("account_acct", "you"),
+            "avatar": settings.get("account_avatar", ""),
+            "instance_url": settings.get("instance_url", ""),
+        }
+        toots, total_toots = get_filtered_toots(conn, page=1, per_page=25, filter_type="all")
+        notifications, total_notifs = get_notifications(conn, page=1, per_page=25)
+        favorites, total_favs = get_favorites(conn, page=1, per_page=25)
+        bookmarks, total_bms = get_bookmarks(conn, page=1, per_page=25)
+        hashtags = get_hashtag_counts(conn, limit=10)
+        queue_items = list_pending_toots()
+        stats = get_stats(conn)
+
+    return templates.TemplateResponse("deck.html", {
+        "request": request,
+        "account": account,
+        "toots": toots,
+        "total_toots": total_toots,
+        "notifications": notifications,
+        "total_notifs": total_notifs,
+        "favorites": favorites,
+        "total_favs": total_favs,
+        "bookmarks": bookmarks,
+        "total_bms": total_bms,
+        "hashtags": hashtags,
+        "queue_items": queue_items,
+        "stats": stats,
+        "default_visibility": settings.get("pu_toot_visibility") or "public",
+    })
+
+
+@app.post("/api/compose")
+async def api_compose_toot(request: Request):
+    """Publish a new toot directly to Mastodon from the Deck interface."""
+    if (auth := _require_auth_api(request)):
+        return auth
+    if csrf := await _require_csrf(request):
+        return csrf
+    data = await request.json()
+    status_text = str(data.get("status", "")).strip()
+    visibility = str(data.get("visibility", "public")).strip().lower()
+    in_reply_to_id = data.get("in_reply_to_id")
+    sensitive = bool(data.get("sensitive", False))
+    spoiler_text = str(data.get("spoiler_text", "")).strip() or None
+
+    if not status_text:
+        return JSONResponse({"status": "error", "message": "Toot content cannot be empty."}, status_code=400)
+    if len(status_text) > 500:
+        return JSONResponse({"status": "error", "message": "Toot exceeds 500 character limit."}, status_code=400)
+    if visibility not in ("public", "unlisted", "private", "direct"):
+        visibility = "public"
+
+    with get_db() as conn:
+        instance_url = get_setting(conn, "instance_url")
+        access_token = get_setting(conn, "access_token")
+
+    if not instance_url or not access_token:
+        return JSONResponse({"status": "error", "message": "Mastodon account not connected."}, status_code=400)
+
+    try:
+        client = Mastodon(access_token=access_token, api_base_url=instance_url)
+        posted = client.status_post(
+            status=status_text,
+            in_reply_to_id=in_reply_to_id,
+            visibility=visibility,
+            sensitive=sensitive,
+            spoiler_text=spoiler_text,
+        )
+        if isinstance(posted, dict):
+            with get_db() as conn:
+                upsert_toot(conn, posted)
+        return JSONResponse({
+            "status": "ok",
+            "message": "Toot published successfully!",
+            "toot": {
+                "id": str(posted.get("id", "")),
+                "url": posted.get("url", ""),
+                "created_at": str(posted.get("created_at", "")),
+            }
+        })
+    except Exception as e:
+        logger.exception("Failed to post status via API")
+        return JSONResponse({"status": "error", "message": f"Mastodon API error: {e}"}, status_code=500)
+
+
+@app.get("/api/deck/column/{col_name}")
+async def api_deck_column(col_name: str, request: Request, filter: str = "", page: int = 1):
+    """Dynamic fetch / refresh endpoint for Deck columns."""
+    if (auth := _require_auth_api(request)):
+        return auth
+    with get_db() as conn:
+        if col_name == "toots":
+            items, total = get_filtered_toots(conn, page=page, per_page=25, filter_type=filter or "all")
+            return JSONResponse({"items": items, "total": total, "page": page})
+        elif col_name == "notifications":
+            items, total = get_notifications(conn, page=page, per_page=25, type_filter=filter)
+            return JSONResponse({"items": items, "total": total, "page": page})
+        elif col_name == "favorites":
+            items, total = get_favorites(conn, page=page, per_page=25)
+            return JSONResponse({"items": items, "total": total, "page": page})
+        elif col_name == "bookmarks":
+            items, total = get_bookmarks(conn, page=page, per_page=25)
+            return JSONResponse({"items": items, "total": total, "page": page})
+        elif col_name == "queue":
+            items = list_pending_toots()
+            return JSONResponse({"items": items, "total": len(items), "page": 1})
+    return JSONResponse({"status": "error", "message": "Unknown column"}, status_code=404)
 
 
 @app.get("/toots", response_class=HTMLResponse)

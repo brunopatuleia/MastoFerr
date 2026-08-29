@@ -476,7 +476,7 @@ async def login_page(request: Request, next: str = "/", error: str = ""):
         instance_url = get_setting(conn, "instance_url") or ""
     if configured and _is_authenticated(request):
         return RedirectResponse(url=_safe_next(next), status_code=302)
-    response = templates.TemplateResponse("login.html", {
+    response = templates.TemplateResponse(request=request, name="login.html", context={
         "request": request,
         "next": next,
         "error": error,
@@ -498,14 +498,14 @@ async def login_submit(request: Request):
     with _login_rate_lock:
         attempts = [t for t in _login_rate.get(client_ip, []) if now - t < _LOGIN_WINDOW]
         if len(attempts) >= _LOGIN_MAX:
-            return templates.TemplateResponse("login.html", {
+            return templates.TemplateResponse(request=request, name="login.html", context={
                 "request": request, "next": next_url, "instance_url": instance_url,
                 "error": "Too many login attempts. Try again later.",
             }, status_code=429)
         _login_rate.setdefault(client_ip, []).append(now)
 
     if not instance_url:
-        return templates.TemplateResponse("login.html", {
+        return templates.TemplateResponse(request=request, name="login.html", context={
             "request": request, "next": next_url, "instance_url": "",
             "error": "Please enter your Mastodon instance (e.g. mastodon.social)",
         }, status_code=400)
@@ -514,7 +514,7 @@ async def login_submit(request: Request):
         instance_url = "https://" + instance_url
 
     if not _safe_url(instance_url):
-        return templates.TemplateResponse("login.html", {
+        return templates.TemplateResponse(request=request, name="login.html", context={
             "request": request, "next": next_url,
             "instance_url": instance_url.replace("https://", "").replace("http://", ""),
             "error": "Invalid instance URL.",
@@ -550,7 +550,7 @@ async def login_submit(request: Request):
     except Exception as e:
         logger.exception("Failed to register app with instance during login")
         instance_label = instance_url.replace("https://", "").replace("http://", "")
-        return templates.TemplateResponse("login.html", {
+        return templates.TemplateResponse(request=request, name="login.html", context={
             "request": request, "next": next_url, "instance_url": instance_label,
             "error": f"Could not connect to {instance_url}: {e}",
         }, status_code=502)
@@ -862,7 +862,7 @@ async def logs_page(request: Request):
     auth = _require_auth(request)
     if auth:
         return auth
-    return templates.TemplateResponse("logs.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="logs.html", context={"request": request})
 
 
 @app.get("/api/logs")
@@ -894,7 +894,7 @@ async def settings_page(request: Request, saved: str = ""):
         return redirect
     with get_db() as conn:
         settings = get_all_settings(conn)
-    return templates.TemplateResponse("settings.html", {
+    return templates.TemplateResponse(request=request, name="settings.html", context={
         "request": request,
         "settings": settings,
         "saved": bool(saved),
@@ -954,7 +954,7 @@ async def index(request: Request):
         notifs, _ = get_notifications(conn, page=1, per_page=10)
         settings = get_all_settings(conn)
         roast = generate_roast(conn)
-    return templates.TemplateResponse("index.html", {
+    return templates.TemplateResponse(request=request, name="index.html", context={
         "request": request,
         "stats": stats,
         "recent_toots": toots,
@@ -988,7 +988,7 @@ async def deck_page(request: Request):
         queue_items = list_pending_toots()
         stats = get_stats(conn)
 
-    return templates.TemplateResponse("deck.html", {
+    return templates.TemplateResponse(request=request, name="deck.html", context={
         "request": request,
         "account": account,
         "toots": toots,
@@ -1092,7 +1092,7 @@ async def toots_page(request: Request, page: int = Query(1, ge=1)):
     with get_db() as conn:
         items, total = get_toots(conn, page=page)
     pagination = _paginate(page, 20, total)
-    return templates.TemplateResponse("toots.html", {
+    return templates.TemplateResponse(request=request, name="toots.html", context={
         "request": request,
         "items": items,
         "pagination": pagination,
@@ -1111,7 +1111,7 @@ async def notifications_page(
     with get_db() as conn:
         items, total = get_notifications(conn, page=page, type_filter=type)
     pagination = _paginate(page, 20, total)
-    return templates.TemplateResponse("notifications.html", {
+    return templates.TemplateResponse(request=request, name="notifications.html", context={
         "request": request,
         "items": items,
         "pagination": pagination,
@@ -1127,7 +1127,7 @@ async def favorites_page(request: Request, page: int = Query(1, ge=1)):
     with get_db() as conn:
         items, total = get_favorites(conn, page=page)
     pagination = _paginate(page, 20, total)
-    return templates.TemplateResponse("favorites.html", {
+    return templates.TemplateResponse(request=request, name="favorites.html", context={
         "request": request,
         "items": items,
         "pagination": pagination,
@@ -1142,7 +1142,7 @@ async def bookmarks_page(request: Request, page: int = Query(1, ge=1)):
     with get_db() as conn:
         items, total = get_bookmarks(conn, page=page)
     pagination = _paginate(page, 20, total)
-    return templates.TemplateResponse("bookmarks.html", {
+    return templates.TemplateResponse(request=request, name="bookmarks.html", context={
         "request": request,
         "items": items,
         "pagination": pagination,
@@ -1165,7 +1165,7 @@ async def search_page(
         with get_db() as conn:
             results, total = search(conn, q, source_type=type, page=page)
     pagination = _paginate(page, 20, total)
-    return templates.TemplateResponse("search.html", {
+    return templates.TemplateResponse(request=request, name="search.html", context={
         "request": request,
         "query": q,
         "type_filter": type,
@@ -1184,7 +1184,7 @@ async def hashtags_page(request: Request, period: str = "all"):
     days = _PERIOD_DAYS[period]
     with get_db() as conn:
         hashtags = get_hashtag_counts(conn, days=days)
-    return templates.TemplateResponse("hashtags.html", {
+    return templates.TemplateResponse(request=request, name="hashtags.html", context={
         "request": request,
         "hashtags": hashtags,
         "total": len(hashtags),
@@ -1203,7 +1203,7 @@ async def topics_page(request: Request, period: str = "all"):
     days = _PERIOD_DAYS[period]
     with get_db() as conn:
         topics = get_topic_counts(conn, days=days)
-    return templates.TemplateResponse("topics.html", {
+    return templates.TemplateResponse(request=request, name="topics.html", context={
         "request": request,
         "topics": topics,
         "total": len(topics),
@@ -1223,7 +1223,7 @@ async def followers_page(request: Request, page: int = Query(1, ge=1)):
         chart = get_follower_chart_data(conn)
         unfollowers = get_unfollowers(conn)
     pagination = _paginate(page, 40, total)
-    return templates.TemplateResponse("followers.html", {
+    return templates.TemplateResponse(request=request, name="followers.html", context={
         "request": request,
         "events": events,
         "counts": counts,
@@ -1259,7 +1259,7 @@ async def interactions_page(request: Request, period: str = "15d"):
         boosters = get_top_boosters(conn, days=days)
         boosted_by_me = get_top_boosted_by_me(conn, days=days)
         tab_name = get_setting(conn, "interactions_tab_name") or "Friends or Stalkers"
-    return templates.TemplateResponse("interactions.html", {
+    return templates.TemplateResponse(request=request, name="interactions.html", context={
         "request": request,
         "repliers": repliers,
         "replied_to": replied_to,
@@ -1303,7 +1303,7 @@ async def toot_detail(request: Request, toot_id: str):
         toot = get_toot_detail(conn, toot_id)
     if not toot:
         return HTMLResponse("<h1>Toot not found</h1>", status_code=404)
-    return templates.TemplateResponse("detail.html", {
+    return templates.TemplateResponse(request=request, name="detail.html", context={
         "request": request,
         "toot": toot,
     })
@@ -1430,7 +1430,7 @@ async def confirm_toot(token: str, request: Request):
             "<h2>Link expired or already used.</h2><p>This confirmation link is no longer valid.</p>",
             status_code=404,
         )
-    return templates.TemplateResponse("confirm_toot.html", {
+    return templates.TemplateResponse(request=request, name="confirm_toot.html", context={
         "request": request,
         "token": token,
         "entry": entry,
@@ -1512,7 +1512,7 @@ async def queue_page(request: Request):
         history = get_confirmation_log(conn)
     status = request.query_params.get("status", "")
     label = request.query_params.get("label", "")
-    return templates.TemplateResponse("queue.html", {
+    return templates.TemplateResponse(request=request, name="queue.html", context={
         "request": request,
         "items": items,
         "history": history,

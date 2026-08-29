@@ -28,6 +28,7 @@ All notable changes to Mastoferr are documented here.
 - `APP_PASSWORD` removed from `config.py` and `.env.example`.
 
 ### Fixed & Hardened
+- **Starlette / FastAPI TemplateResponse Signature** — Updated all Jinja2 `TemplateResponse` calls in `app/main.py` to use modern `request=request, name="..."` keyword arguments, resolving `TypeError: unhashable type: 'dict'` on `/login` and other template routes with newer Starlette/FastAPI.
 - **Container Signal Handling & Zombie Process Reaping (`tini`)** — Integrated `tini` as PID 1 subreaper in `Dockerfile` and `entrypoint.sh` to forward SIGTERM signals and reap zombie child processes left by healthcheck checks.
 - **Graceful Shutdown** — Added `--timeout-graceful-shutdown 5` to Uvicorn and reduced `ProfileUpdater` shutdown timeout from 20s to 3s to eliminate hanging container stops in Docker/Komodo.
 - **Optimized Healthcheck** — Healthcheck endpoint `/health` now uses an explicit 5s timeout and proper exit code handling.

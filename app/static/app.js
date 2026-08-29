@@ -206,3 +206,154 @@ document.addEventListener('DOMContentLoaded', checkVersion);
         }
     });
 }());
+
+// ── Global In-App Media Lightbox Controller ──────────────────────────────────
+let lightboxItems = [];
+let lightboxCurrentIndex = 0;
+
+function openLightbox(items, startIndex = 0) {
+    if (!items || !items.length) return;
+    lightboxItems = items;
+    lightboxCurrentIndex = Math.max(0, Math.min(startIndex, items.length - 1));
+
+    const modal = document.getElementById('media-lightbox');
+    if (!modal) return;
+
+    modal.style.display = 'flex';
+    document.body.classList.add('lightbox-open');
+    renderLightboxItem();
+}
+
+function closeLightbox(e) {
+    if (e && e.target && e.target.closest && e.target.closest('.lightbox-dialog') && !e.target.closest('.lightbox-close')) {
+        return;
+    }
+    const modal = document.getElementById('media-lightbox');
+    const video = document.getElementById('lightbox-video');
+    if (video) {
+        video.pause();
+        video.src = '';
+    }
+    if (modal) modal.style.display = 'none';
+    document.body.classList.remove('lightbox-open');
+}
+
+function navigateLightbox(direction) {
+    if (!lightboxItems.length) return;
+    lightboxCurrentIndex = (lightboxCurrentIndex + direction + lightboxItems.length) % lightboxItems.length;
+    renderLightboxItem();
+}
+
+function renderLightboxItem() {
+    const item = lightboxItems[lightboxCurrentIndex];
+    if (!item) return;
+
+    const imgEl = document.getElementById('lightbox-img');
+    const videoEl = document.getElementById('lightbox-video');
+    const captionEl = document.getElementById('lightbox-caption');
+    const descEl = document.getElementById('lightbox-desc');
+    const counterEl = document.getElementById('lightbox-counter');
+    const prevBtn = document.getElementById('lightbox-prev');
+    const nextBtn = document.getElementById('lightbox-next');
+
+    const isVideo = item.type === 'video' || (item.url && item.url.match(/\.(mp4|webm|mov)$/i));
+
+    if (isVideo) {
+        if (imgEl) imgEl.style.display = 'none';
+        if (videoEl) {
+            videoEl.src = item.url;
+            videoEl.style.display = 'block';
+            videoEl.play().catch(() => {});
+        }
+    } else {
+        if (videoEl) {
+            videoEl.pause();
+            videoEl.style.display = 'none';
+            videoEl.src = '';
+        }
+        if (imgEl) {
+            imgEl.src = item.url || item.preview_url;
+            imgEl.alt = item.description || '';
+            imgEl.style.display = 'block';
+        }
+    }
+
+    if (prevBtn && nextBtn) {
+        const hasMultiple = lightboxItems.length > 1;
+        prevBtn.style.display = hasMultiple ? 'flex' : 'none';
+        nextBtn.style.display = hasMultiple ? 'flex' : 'none';
+    }
+
+    const hasDesc = Boolean(item.description && item.description.trim());
+    if (captionEl) {
+        if (hasDesc || lightboxItems.length > 1) {
+            captionEl.style.display = 'flex';
+            if (descEl) descEl.textContent = item.description || '';
+            if (counterEl) {
+                counterEl.textContent = lightboxItems.length > 1 ? `${lightboxCurrentIndex + 1} / ${lightboxItems.length}` : '';
+            }
+        } else {
+            captionEl.style.display = 'none';
+        }
+    }
+}
+
+// Global Click Interceptor for Media Items
+document.addEventListener('click', function (e) {
+    const mediaItem = e.target.closest('.media-item');
+    if (!mediaItem) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const grid = mediaItem.closest('.media-grid');
+    const items = [];
+    let activeIndex = 0;
+
+    if (grid) {
+        const mediaElements = Array.from(grid.querySelectorAll('.media-item'));
+        mediaElements.forEach((el, idx) => {
+            if (el === mediaItem) activeIndex = idx;
+            const img = el.querySelector('img');
+            const vid = el.querySelector('video');
+            const fullUrl = el.getAttribute('href') || el.dataset.fullUrl || (img ? img.src : (vid ? vid.src : ''));
+            const desc = img ? img.alt : (el.dataset.description || '');
+            const isVideo = Boolean(vid || (fullUrl && fullUrl.match(/\.(mp4|webm|mov)$/i)));
+            items.push({
+                url: fullUrl,
+                preview_url: img ? img.src : fullUrl,
+                type: isVideo ? 'video' : 'image',
+                description: desc
+            });
+        });
+    } else {
+        const img = mediaItem.querySelector('img');
+        const vid = mediaItem.querySelector('video');
+        const fullUrl = mediaItem.getAttribute('href') || (img ? img.src : (vid ? vid.src : ''));
+        const desc = img ? img.alt : '';
+        const isVideo = Boolean(vid || (fullUrl && fullUrl.match(/\.(mp4|webm|mov)$/i)));
+        items.push({
+            url: fullUrl,
+            type: isVideo ? 'video' : 'image',
+            description: desc
+        });
+    }
+
+    if (items.length) {
+        openLightbox(items, activeIndex);
+    }
+});
+
+// Keyboard Navigation for Lightbox
+document.addEventListener('keydown', function (e) {
+    const modal = document.getElementById('media-lightbox');
+    if (!modal || modal.style.display === 'none') return;
+
+    if (e.key === 'Escape') {
+        closeLightbox();
+    } else if (e.key === 'ArrowLeft') {
+        navigateLightbox(-1);
+    } else if (e.key === 'ArrowRight') {
+        navigateLightbox(1);
+    }
+});

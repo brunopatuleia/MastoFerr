@@ -90,6 +90,25 @@
         {% endif %}
     </div>
 
+    <!-- Global In-App Media Lightbox Modal -->
+    <div id="media-lightbox" class="lightbox-backdrop" style="display:none;" onclick="closeLightbox(event)">
+        <div class="lightbox-dialog" onclick="event.stopPropagation()">
+            <button class="lightbox-btn lightbox-close" onclick="closeLightbox()" title="Close (Esc)">&#10006;</button>
+            <button class="lightbox-btn lightbox-prev" id="lightbox-prev" onclick="navigateLightbox(-1)" title="Previous image (&#8592;)">&#10094;</button>
+            <button class="lightbox-btn lightbox-next" id="lightbox-next" onclick="navigateLightbox(1)" title="Next image (&#8594;)">&#10095;</button>
+
+            <div class="lightbox-media-container" id="lightbox-media-container">
+                <img id="lightbox-img" src="" alt="" class="lightbox-img" style="display:none;">
+                <video id="lightbox-video" src="" controls autoplay loop class="lightbox-video" style="display:none;"></video>
+            </div>
+
+            <div class="lightbox-caption" id="lightbox-caption" style="display:none;">
+                <span class="lightbox-description" id="lightbox-desc"></span>
+                <span class="lightbox-counter" id="lightbox-counter"></span>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/app.js"></script>
 </body>
 </html>

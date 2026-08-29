@@ -37,43 +37,59 @@
     </script>
 </head>
 <body>
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
     <aside class="main-sidebar" id="main-sidebar">
         <div class="nav-brand">
-            <a href="/"><img src="/static/logo.png?v={{ APP_VERSION }}" alt="Mastoferr" class="nav-logo"> Mastoferr
-            {% if APP_ENV == 'alpha' %}
-            <span style="background:var(--pink);color:#fff;font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:4px;margin-left:0.4rem;vertical-align:middle;font-weight:bold;letter-spacing:0.05em;text-transform:uppercase;">Alpha</span>
-            {% elif APP_ENV == 'beta' %}
-            <span style="background:var(--orange);color:#fff;font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:4px;margin-left:0.4rem;vertical-align:middle;font-weight:bold;letter-spacing:0.05em;text-transform:uppercase;">Beta</span>
-            {% endif %}
+            <a href="/" class="nav-brand-link">
+                <img src="/static/logo.png?v={{ APP_VERSION }}" alt="Mastoferr" class="nav-logo">
+                <span class="nav-brand-text">Mastoferr</span>
+                {% if APP_ENV == 'alpha' %}
+                <span class="badge-env badge-alpha">Alpha</span>
+                {% elif APP_ENV == 'beta' %}
+                <span class="badge-env badge-beta">Beta</span>
+                {% endif %}
             </a>
+            <button class="btn-sidebar-toggle" id="btn-sidebar-collapse" title="Collapse sidebar">&#171;</button>
         </div>
         <nav class="sidebar-nav">
-            <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
-            <a href="/deck" class="{% if request.url.path == '/deck' %}active{% endif %}">Deck</a>
+            <a href="/" class="{% if request.url.path == '/' %}active{% endif %}" title="Dashboard"><span class="nav-icon">&#128202;</span><span class="nav-text">Dashboard</span></a>
+            <a href="/deck" class="{% if request.url.path == '/deck' %}active{% endif %}" title="Deck"><span class="nav-icon">&#128450;</span><span class="nav-text">Deck</span></a>
             <div class="sidebar-nav-sep"></div>
-            <a href="/toots" class="{% if request.url.path == '/toots' %}active{% endif %}">Toots</a>
-            <a href="/notifications" class="{% if request.url.path == '/notifications' %}active{% endif %}">Notifs</a>
-            <a href="/favorites" class="{% if request.url.path == '/favorites' %}active{% endif %}">Favorites</a>
-            <a href="/bookmarks" class="{% if request.url.path == '/bookmarks' %}active{% endif %}">Bookmarks</a>
+            <a href="/toots" class="{% if request.url.path == '/toots' %}active{% endif %}" title="Toots"><span class="nav-icon">&#128172;</span><span class="nav-text">Toots</span></a>
+            <a href="/notifications" class="{% if request.url.path == '/notifications' %}active{% endif %}" title="Notifications"><span class="nav-icon">&#128276;</span><span class="nav-text">Notifs</span></a>
+            <a href="/favorites" class="{% if request.url.path == '/favorites' %}active{% endif %}" title="Favorites"><span class="nav-icon">&#11088;</span><span class="nav-text">Favorites</span></a>
+            <a href="/bookmarks" class="{% if request.url.path == '/bookmarks' %}active{% endif %}" title="Bookmarks"><span class="nav-icon">&#128278;</span><span class="nav-text">Bookmarks</span></a>
             <div class="sidebar-nav-sep"></div>
-            <a href="/followers" class="{% if request.url.path == '/followers' %}active{% endif %}">Users</a>
-            <a href="/interactions" class="{% if request.url.path == '/interactions' %}active{% endif %}">{{ app_settings().get('interactions_tab_name') or 'Friends or Stalkers' }}</a>
-            <a href="/hashtags" class="{% if request.url.path == '/hashtags' %}active{% endif %}">Hashtags</a>
-            <a href="/topics" class="{% if request.url.path == '/topics' %}active{% endif %}">Topics</a>
+            <a href="/followers" class="{% if request.url.path == '/followers' %}active{% endif %}" title="Users & Followers"><span class="nav-icon">&#128101;</span><span class="nav-text">Users</span></a>
+            <a href="/interactions" class="{% if request.url.path == '/interactions' %}active{% endif %}" title="Interactions"><span class="nav-icon">&#129309;</span><span class="nav-text">{{ app_settings().get('interactions_tab_name') or 'Friends or Stalkers' }}</span></a>
+            <a href="/hashtags" class="{% if request.url.path == '/hashtags' %}active{% endif %}" title="Hashtags"><span class="nav-icon">&#127991;</span><span class="nav-text">Hashtags</span></a>
+            <a href="/topics" class="{% if request.url.path == '/topics' %}active{% endif %}" title="Topics"><span class="nav-icon">&#128161;</span><span class="nav-text">Topics</span></a>
             <div class="sidebar-nav-sep"></div>
-            <a href="/queue" class="{% if request.url.path == '/queue' %}active{% endif %}">Queue</a>
-            <a href="/logs" class="{% if request.url.path == '/logs' %}active{% endif %}">Logs</a>
-            <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}">Settings</a>
+            <a href="/queue" class="{% if request.url.path == '/queue' %}active{% endif %}" title="Post Queue"><span class="nav-icon">&#9203;</span><span class="nav-text">Queue</span></a>
+            <a href="/logs" class="{% if request.url.path == '/logs' %}active{% endif %}" title="Logs"><span class="nav-icon">&#128220;</span><span class="nav-text">Logs</span></a>
+            <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}" title="Settings"><span class="nav-icon">&#9881;</span><span class="nav-text">Settings</span></a>
             {% block sidebar_extra %}{% endblock %}
         </nav>
     </aside>
 
     <div class="page-wrapper">
         <header class="topbar">
-            <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle navigation" aria-expanded="false">&#9776;</button>
+            <div class="topbar-left">
+                <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle navigation" aria-expanded="false">&#9776;</button>
+                <a href="/" class="topbar-brand">
+                    <img src="/static/logo.png?v={{ APP_VERSION }}" alt="Mastoferr" class="nav-logo">
+                    <span class="topbar-brand-title">Mastoferr</span>
+                    {% if APP_ENV == 'alpha' %}
+                    <span class="badge-env badge-alpha">Alpha</span>
+                    {% elif APP_ENV == 'beta' %}
+                    <span class="badge-env badge-beta">Beta</span>
+                    {% endif %}
+                </a>
+            </div>
             <form class="topbar-search" action="/search" method="get">
-                <input type="text" name="q" placeholder="Search..." value="{{ request.query_params.get('q', '') }}">
-                <button type="submit">&#128269;</button>
+                <input type="text" name="q" placeholder="Search archive..." value="{{ request.query_params.get('q', '') }}">
+                <button type="submit" aria-label="Search">&#128269;</button>
             </form>
         </header>
 

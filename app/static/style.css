@@ -2141,6 +2141,179 @@ h2 {
     padding: 0.6rem;
 }
 
+/* User Profile Column Styles */
+.deck-author-link-inline {
+    color: var(--accent);
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.deck-author-link-inline:hover {
+    text-decoration: underline;
+}
+
+.deck-author-link {
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.deck-author-link:hover .deck-author-name {
+    color: var(--accent);
+}
+
+.deck-profile-view {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-bottom: 1.5rem;
+}
+
+.profile-hero {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.profile-header-banner {
+    height: 110px;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--bg-hover);
+}
+
+.profile-header-banner.empty-banner {
+    background: linear-gradient(135deg, #1f293d 0%, #0f172a 100%);
+}
+
+.profile-avatar-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 1rem;
+    margin-top: -36px;
+}
+
+.profile-main-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 3px solid var(--bg-card);
+    object-fit: cover;
+    background: var(--bg-card);
+}
+
+.profile-actions-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.3rem;
+}
+
+.profile-meta-block {
+    padding: 0.75rem 1rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.profile-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.profile-display-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.badge-bot {
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+}
+
+.badge-locked {
+    font-size: 0.85rem;
+}
+
+.profile-handle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.profile-bio {
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: var(--text);
+    word-break: break-word;
+    margin-top: 0.2rem;
+}
+
+.profile-bio a {
+    color: var(--accent);
+}
+
+.profile-fields-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+.profile-field-row {
+    display: flex;
+    gap: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.field-name {
+    color: var(--text-muted);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.field-val {
+    color: var(--text);
+    word-break: break-word;
+}
+
+.field-val a {
+    color: var(--accent);
+}
+
+.profile-stats-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.profile-stats-row strong {
+    color: var(--text);
+    font-weight: 700;
+}
+
+.profile-statuses-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
 /* Modal styles */
 .deck-modal-backdrop {
     position: fixed;

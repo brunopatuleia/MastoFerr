@@ -1337,6 +1337,115 @@ async def api_deck_toot_context(toot_id: str, request: Request):
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
+@app.get("/api/deck/account/{account_id}")
+async def api_deck_account_profile(account_id: str, request: Request):
+    """Fetch user profile metadata and relationship."""
+    if (auth := _require_auth_api(request)):
+        return auth
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Mastodon account not connected."}, status_code=400)
+    try:
+        if account_id.startswith('@'):
+            acc = client.account_lookup(account_id.lstrip('@'))
+        else:
+            acc = client.account(account_id)
+
+        target_id = acc.get("id")
+        rel_list = client.account_relationships(target_id)
+        rel = rel_list[0] if rel_list and isinstance(rel_list, list) else (rel_list if isinstance(rel_list, dict) else {})
+
+        fields = []
+        for f in acc.get("fields", []):
+            if isinstance(f, dict):
+                fields.append({
+                    "name": f.get("name", ""),
+                    "value": f.get("value", ""),
+                    "verified_at": f.get("verified_at")
+                })
+
+        created_at = acc.get("created_at")
+        created_str = created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at or "")
+
+        return JSONResponse({
+            "status": "ok",
+            "account": {
+                "id": str(acc.get("id")),
+                "username": acc.get("username", ""),
+                "acct": acc.get("acct", ""),
+                "display_name": acc.get("display_name") or acc.get("username") or "",
+                "url": acc.get("url", ""),
+                "avatar": acc.get("avatar") or acc.get("avatar_static") or "",
+                "header": acc.get("header") or acc.get("header_static") or "",
+                "note": acc.get("note", ""),
+                "statuses_count": acc.get("statuses_count", 0),
+                "following_count": acc.get("following_count", 0),
+                "followers_count": acc.get("followers_count", 0),
+                "bot": bool(acc.get("bot")),
+                "locked": bool(acc.get("locked")),
+                "created_at": created_str,
+                "fields": fields,
+            },
+            "relationship": {
+                "following": bool(rel.get("following")),
+                "followed_by": bool(rel.get("followed_by")),
+                "muting": bool(rel.get("muting")),
+                "blocking": bool(rel.get("blocking")),
+            }
+        })
+    except Exception as e:
+        logger.exception(f"Failed to fetch profile for account {account_id}")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.get("/api/deck/account/{account_id}/statuses")
+async def api_deck_account_statuses(account_id: str, request: Request, filter: str = "posts", max_id: str = None, limit: int = 30):
+    """Fetch user's statuses with filtering (posts, replies, media)."""
+    if (auth := _require_auth_api(request)):
+        return auth
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Mastodon account not connected."}, status_code=400)
+    try:
+        exclude_replies = (filter == "posts")
+        only_media = (filter == "media")
+        statuses = client.account_statuses(
+            account_id,
+            exclude_replies=exclude_replies,
+            only_media=only_media,
+            max_id=max_id,
+            limit=min(limit, 40)
+        )
+        items = [_format_status_for_deck(s) for s in statuses]
+        return JSONResponse({"status": "ok", "items": items, "count": len(items)})
+    except Exception as e:
+        logger.exception(f"Failed to fetch statuses for account {account_id}")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.post("/api/deck/account/{account_id}/follow")
+async def api_deck_account_follow(account_id: str, request: Request):
+    """Follow or unfollow a user account."""
+    if (auth := _require_auth_api(request)):
+        return auth
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Mastodon account not connected."}, status_code=400)
+    try:
+        data = await request.json() if request.headers.get("content-type") == "application/json" else {}
+        action = data.get("action", "follow")
+        if action == "unfollow":
+            rel = client.account_unfollow(account_id)
+            following = False
+        else:
+            rel = client.account_follow(account_id)
+            following = True
+        return JSONResponse({"status": "ok", "following": following})
+    except Exception as e:
+        logger.exception(f"Failed to toggle follow for account {account_id}")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
 @app.post("/api/deck/toot/{toot_id}/favourite")
 async def api_deck_favourite(toot_id: str, request: Request):
     if (auth := _require_auth_api(request)):

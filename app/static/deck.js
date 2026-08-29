@@ -81,6 +81,7 @@ function createColumnElement(col, index) {
         archive: '💬',
         trends: '📊',
         thread: '🧵',
+        profile: '👤',
     };
 
     const icon = iconMap[col.type] || '📄';
@@ -88,13 +89,13 @@ function createColumnElement(col, index) {
     const isLastMovable = index === deckColumns.length - 1;
 
     let headerControls = '';
-    if (col.type === 'thread') {
+    if (col.type === 'thread' || col.type === 'profile') {
         headerControls = `
             <div class="deck-col-controls">
                 <button class="btn-col-action btn-col-back" onclick="removeColumn('${col.id}')" title="Back">← Back</button>
                 <button class="btn-col-action" onclick="cycleColumnWidth('${col.id}')" title="Change Width (${col.width || 380}px)">📏</button>
-                <button class="btn-col-action" onclick="refreshColumn('${col.id}')" title="Refresh Thread">🔄</button>
-                <button class="btn-col-action btn-col-close" onclick="removeColumn('${col.id}')" title="Close Thread">✖</button>
+                <button class="btn-col-action" onclick="refreshColumn('${col.id}')" title="Refresh">🔄</button>
+                <button class="btn-col-action btn-col-close" onclick="removeColumn('${col.id}')" title="Close">✖</button>
             </div>
         `;
     } else if (!col.permanent) {
@@ -140,6 +141,15 @@ function createColumnElement(col, index) {
                 <button class="deck-pill" onclick="setArchiveFilter('${col.id}', 'post')">Posts</button>
                 <button class="deck-pill" onclick="setArchiveFilter('${col.id}', 'reply')">Replies</button>
                 <button class="deck-pill" onclick="setArchiveFilter('${col.id}', 'boost')">Boosts</button>
+            </div>
+        `;
+    } else if (col.type === 'profile') {
+        const activeF = col.filter || 'posts';
+        filterBarHtml = `
+            <div class="deck-filter-bar" data-col-id="${col.id}">
+                <button class="deck-pill ${activeF === 'posts' ? 'active' : ''}" onclick="setProfileFilter('${col.id}', 'posts')">Posts</button>
+                <button class="deck-pill ${activeF === 'all' ? 'active' : ''}" onclick="setProfileFilter('${col.id}', 'all')">Posts & Replies</button>
+                <button class="deck-pill ${activeF === 'media' ? 'active' : ''}" onclick="setProfileFilter('${col.id}', 'media')">Media</button>
             </div>
         `;
     }
@@ -220,9 +230,27 @@ async function fetchColumnData(col) {
         url = `/api/deck/feed/trends`;
     } else if (col.type === 'thread') {
         url = `/api/deck/toot/${col.tootId}/context`;
+    } else if (col.type === 'profile') {
+        url = `/api/deck/account/${encodeURIComponent(col.accountId)}`;
     }
 
     try {
+        if (col.type === 'profile') {
+            const [profResp, statusResp] = await Promise.all([
+                fetch(`/api/deck/account/${encodeURIComponent(col.accountId)}`),
+                fetch(`/api/deck/account/${encodeURIComponent(col.accountId)}/statuses?filter=${encodeURIComponent(col.filter || 'posts')}`)
+            ]);
+            const profData = await profResp.json();
+            const statusData = await statusResp.json();
+
+            if (profData.status === 'error') {
+                contentEl.innerHTML = `<div class="deck-empty-inline error">${escapeHtml(profData.message)}</div>`;
+                return;
+            }
+            renderUserProfileView(contentEl, profData, statusData, col.id);
+            return;
+        }
+
         const resp = await fetch(url);
         const data = await resp.json();
 
@@ -267,7 +295,7 @@ async function fetchColumnData(col) {
 }
 
 function handleCardClick(e, tootId) {
-    if (e.target.closest('a') || e.target.closest('button') || e.target.closest('textarea') || e.target.closest('input') || e.target.closest('.media-item') || e.target.closest('.deck-reply-box')) {
+    if (e.target.closest('a') || e.target.closest('button') || e.target.closest('textarea') || e.target.closest('input') || e.target.closest('.media-item') || e.target.closest('.deck-reply-box') || e.target.closest('.deck-author-link') || e.target.closest('.deck-author-link-inline')) {
         return;
     }
     openTootThread(tootId);
@@ -297,6 +325,42 @@ function openTootThread(tootId) {
     }, 120);
 }
 
+function setProfileFilter(colId, filter) {
+    const col = deckColumns.find(c => c.id === colId);
+    if (!col) return;
+    col.filter = filter;
+    saveColumns();
+    renderColumns();
+}
+
+function openUserProfile(accountId, username = '') {
+    if (!accountId) return;
+    let profCol = deckColumns.find(c => c.type === 'profile');
+    const displayTitle = username ? (username.startsWith('@') ? username : `@${username}`) : 'Profile';
+    if (profCol) {
+        profCol.accountId = accountId;
+        profCol.title = displayTitle;
+        profCol.filter = profCol.filter || 'posts';
+    } else {
+        profCol = {
+            type: 'profile',
+            id: 'col-profile',
+            title: displayTitle,
+            accountId: accountId,
+            filter: 'posts',
+            width: 400,
+        };
+        deckColumns.push(profCol);
+    }
+    saveColumns();
+    renderColumns();
+
+    setTimeout(() => {
+        const el = document.getElementById(profCol.id);
+        if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' });
+    }, 120);
+}
+
 function renderTootCard(toot, isThreadItem = false) {
     const acct = toot.account || {};
     const hasCw = Boolean(toot.spoiler_text && toot.spoiler_text.trim());
@@ -304,9 +368,10 @@ function renderTootCard(toot, isThreadItem = false) {
 
     let reblogHeader = '';
     if (toot.is_reblog && toot.reblogged_by) {
+        const rAcc = toot.reblogged_by;
         reblogHeader = `
             <div class="deck-reblog-header">
-                <span>🔁 ${escapeHtml(toot.reblogged_by.display_name || toot.reblogged_by.acct)} boosted</span>
+                <span>🔁 <span class="deck-author-link-inline" onclick="event.stopPropagation(); openUserProfile('${rAcc.id}', '${escapeHtml(rAcc.username || rAcc.acct)}')">${escapeHtml(rAcc.display_name || rAcc.acct)}</span> boosted</span>
             </div>
         `;
     }
@@ -343,13 +408,13 @@ function renderTootCard(toot, isThreadItem = false) {
         <div class="deck-card deck-card-clickable ${isThreadItem ? 'deck-card-thread' : ''}" id="${cardId}" onclick="handleCardClick(event, '${toot.id}')">
             ${reblogHeader}
             <div class="deck-card-header">
-                <a href="${escapeHtml(acct.url || '#')}" target="_blank" rel="noopener" class="deck-author-link">
+                <div class="deck-author-link" onclick="event.stopPropagation(); openUserProfile('${acct.id}', '${escapeHtml(acct.username || acct.acct)}')">
                     <img src="${escapeHtml(acct.avatar || '/static/logo.png')}" alt="" class="deck-author-avatar">
                     <div class="deck-author-meta">
                         <span class="deck-author-name">${escapeHtml(acct.display_name || acct.username || 'User')}</span>
                         <span class="deck-author-handle">@${escapeHtml(acct.acct || '')}</span>
                     </div>
-                </a>
+                </div>
                 <span class="deck-card-time" title="${escapeHtml(toot.created_at)}">${timeStr}</span>
             </div>
 
@@ -443,9 +508,10 @@ function renderFocalTootCard(toot) {
 
     let reblogHeader = '';
     if (toot.is_reblog && toot.reblogged_by) {
+        const rAcc = toot.reblogged_by;
         reblogHeader = `
             <div class="deck-reblog-header">
-                <span>🔁 ${escapeHtml(toot.reblogged_by.display_name || toot.reblogged_by.acct)} boosted</span>
+                <span>🔁 <span class="deck-author-link-inline" onclick="event.stopPropagation(); openUserProfile('${rAcc.id}', '${escapeHtml(rAcc.username || rAcc.acct)}')">${escapeHtml(rAcc.display_name || rAcc.acct)}</span> boosted</span>
             </div>
         `;
     }
@@ -482,13 +548,13 @@ function renderFocalTootCard(toot) {
         <div class="deck-card deck-focal-card" id="${cardId}">
             ${reblogHeader}
             <div class="deck-focal-header">
-                <a href="${escapeHtml(acct.url || '#')}" target="_blank" rel="noopener" class="deck-author-link">
+                <div class="deck-author-link" onclick="event.stopPropagation(); openUserProfile('${acct.id}', '${escapeHtml(acct.username || acct.acct)}')">
                     <img src="${escapeHtml(acct.avatar || '/static/logo.png')}" alt="" class="deck-focal-avatar">
                     <div class="deck-author-meta">
                         <span class="deck-focal-name">${escapeHtml(acct.display_name || acct.username || 'User')}</span>
-                        <span class="deck-author-handle">@${escapeHtml(acct.acct || '')}</span>
+                        <span class="deck-focal-handle">@${escapeHtml(acct.acct || '')}</span>
                     </div>
-                </a>
+                </div>
             </div>
 
             ${cwHtml}
@@ -590,17 +656,106 @@ function renderNotificationCard(notif) {
                 <span class="deck-card-time">${timeStr}</span>
             </div>
             <div class="deck-card-header">
-                <a href="${escapeHtml(acct.url || '#')}" target="_blank" rel="noopener" class="deck-author-link">
+                <div class="deck-author-link" onclick="event.stopPropagation(); openUserProfile('${acct.id}', '${escapeHtml(acct.username || acct.acct)}')">
                     <img src="${escapeHtml(acct.avatar || '/static/logo.png')}" alt="" class="deck-author-avatar">
                     <div class="deck-author-meta">
                         <span class="deck-author-name">${escapeHtml(acct.display_name || acct.username || 'User')}</span>
                         <span class="deck-author-handle">@${escapeHtml(acct.acct || '')}</span>
                     </div>
-                </a>
+                </div>
             </div>
             ${statusContent}
         </div>
     `;
+}
+
+function renderUserProfileView(container, profData, statusData, colId) {
+    const acc = profData.account || {};
+    const rel = profData.relationship || {};
+    const statuses = statusData.items || [];
+
+    const fieldsHtml = (acc.fields || []).map(f => `
+        <div class="profile-field-row">
+            <span class="field-name">${escapeHtml(f.name)}:</span>
+            <span class="field-val">${f.value}</span>
+        </div>
+    `).join('');
+
+    const isFollowing = rel.following;
+    const followBtnText = isFollowing ? 'Unfollow' : (rel.requested ? 'Requested' : 'Follow');
+    const followBtnClass = isFollowing ? 'btn-secondary' : 'btn-primary';
+
+    const bannerHtml = acc.header ? `<div class="profile-header-banner" style="background-image: url('${escapeHtml(acc.header)}')"></div>` : `<div class="profile-header-banner empty-banner"></div>`;
+
+    const statusesHtml = statuses.length ? statuses.map(t => renderTootCard(t)).join('') : `<div class="deck-empty">No toots found.</div>`;
+
+    container.innerHTML = `
+        <div class="deck-profile-view">
+            <div class="profile-hero">
+                ${bannerHtml}
+                <div class="profile-avatar-row">
+                    <img src="${escapeHtml(acc.avatar || '/static/logo.png')}" alt="" class="profile-main-avatar">
+                    <div class="profile-actions-bar">
+                        <button class="btn ${followBtnClass} btn-sm" id="follow-btn-${acc.id}" onclick="toggleFollow('${acc.id}')">
+                            ${followBtnText}
+                        </button>
+                        <a href="${escapeHtml(acc.url || '#')}" target="_blank" rel="noopener" class="btn-action btn-ext" title="Open in Mastodon">🔗</a>
+                    </div>
+                </div>
+
+                <div class="profile-meta-block">
+                    <div class="profile-name-row">
+                        <span class="profile-display-name">${escapeHtml(acc.display_name || acc.username)}</span>
+                        ${acc.bot ? '<span class="badge-bot">BOT</span>' : ''}
+                        ${acc.locked ? '<span class="badge-locked" title="Private account">🔒</span>' : ''}
+                    </div>
+                    <div class="profile-handle">@${escapeHtml(acc.acct)}</div>
+
+                    ${acc.note ? `<div class="profile-bio">${acc.note}</div>` : ''}
+
+                    ${fieldsHtml ? `<div class="profile-fields-grid">${fieldsHtml}</div>` : ''}
+
+                    <div class="profile-stats-row">
+                        <span><strong>${acc.statuses_count || 0}</strong> Posts</span>
+                        <span><strong>${acc.following_count || 0}</strong> Following</span>
+                        <span><strong>${acc.followers_count || 0}</strong> Followers</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="profile-statuses-timeline">
+                ${statusesHtml}
+            </div>
+        </div>
+    `;
+}
+
+async function toggleFollow(accountId) {
+    const btn = document.getElementById(`follow-btn-${accountId}`);
+    if (!btn) return;
+    const currentlyFollowing = btn.textContent.trim() === 'Unfollow';
+    const nextAction = currentlyFollowing ? 'unfollow' : 'follow';
+
+    btn.disabled = true;
+    try {
+        const resp = await fetch(`/api/deck/account/${accountId}/follow`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: nextAction })
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            btn.textContent = data.following ? 'Unfollow' : 'Follow';
+            btn.className = `btn ${data.following ? 'btn-secondary' : 'btn-primary'} btn-sm`;
+            showToast(data.following ? '👥 Following user!' : '👋 Unfollowed user.');
+        } else {
+            alert(data.message || 'Follow action failed');
+        }
+    } catch (e) {
+        alert('Follow error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 function renderTrendsColumn(container, data) {

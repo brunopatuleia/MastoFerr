@@ -10,6 +10,7 @@ import socket as _socket
 import threading
 import time
 import uuid
+from typing import Any
 from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
@@ -1058,6 +1059,315 @@ async def api_compose_toot(request: Request):
     except Exception as e:
         logger.exception("Failed to post status via API")
         return JSONResponse({"status": "error", "message": f"Mastodon API error: {e}"}, status_code=500)
+
+
+def _get_deck_client() -> Mastodon | None:
+    with get_db() as conn:
+        instance_url = get_setting(conn, "instance_url")
+        access_token = get_setting(conn, "access_token")
+    if not instance_url or not access_token:
+        return None
+    return Mastodon(access_token=access_token, api_base_url=instance_url)
+
+
+def _format_status_for_deck(s: dict | Any) -> dict:
+    if not isinstance(s, dict):
+        return {}
+    reblog = s.get("reblog")
+    is_reblog = isinstance(reblog, dict)
+    target = reblog if is_reblog else s
+
+    account = target.get("account") or {}
+    author_account = s.get("account") or {}
+    media = target.get("media_attachments") or []
+
+    formatted_media = []
+    for m in media:
+        if isinstance(m, dict):
+            formatted_media.append({
+                "type": m.get("type", "image"),
+                "url": m.get("url") or m.get("remote_url") or "",
+                "preview_url": m.get("preview_url") or m.get("url") or "",
+                "description": m.get("description") or "",
+            })
+
+    return {
+        "id": str(target.get("id", "")),
+        "status_id": str(s.get("id", "")),
+        "url": target.get("url") or target.get("uri") or "",
+        "created_at": str(target.get("created_at", "")),
+        "content": target.get("content", ""),
+        "spoiler_text": target.get("spoiler_text", ""),
+        "sensitive": bool(target.get("sensitive", False)),
+        "visibility": target.get("visibility", "public"),
+        "account": {
+            "id": str(account.get("id", "")),
+            "username": account.get("username", ""),
+            "acct": account.get("acct", ""),
+            "display_name": account.get("display_name") or account.get("username", ""),
+            "avatar": account.get("avatar") or account.get("avatar_static") or "",
+            "url": account.get("url", ""),
+        },
+        "is_reblog": is_reblog,
+        "reblogged_by": {
+            "display_name": author_account.get("display_name") or author_account.get("username", ""),
+            "acct": author_account.get("acct", ""),
+        } if is_reblog else None,
+        "replies_count": target.get("replies_count", 0),
+        "reblogs_count": target.get("reblogs_count", 0),
+        "favourites_count": target.get("favourites_count", 0),
+        "favourited": bool(target.get("favourited", False)),
+        "reblogged": bool(target.get("reblogged", False)),
+        "bookmarked": bool(target.get("bookmarked", False)),
+        "media_attachments": formatted_media,
+    }
+
+
+def _format_notification_for_deck(n: dict | Any) -> dict:
+    if not isinstance(n, dict):
+        return {}
+    account = n.get("account") or {}
+    status = n.get("status")
+    return {
+        "id": str(n.get("id", "")),
+        "type": n.get("type", "unknown"),
+        "created_at": str(n.get("created_at", "")),
+        "account": {
+            "id": str(account.get("id", "")),
+            "username": account.get("username", ""),
+            "acct": account.get("acct", ""),
+            "display_name": account.get("display_name") or account.get("username", ""),
+            "avatar": account.get("avatar") or account.get("avatar_static") or "",
+            "url": account.get("url", ""),
+        },
+        "status": _format_status_for_deck(status) if isinstance(status, dict) else None,
+    }
+
+
+@app.get("/api/deck/feed/home")
+async def api_deck_feed_home(request: Request, max_id: str = None, limit: int = 30):
+    if (auth := _require_auth_api(request)):
+        return auth
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Not configured"}, status_code=400)
+    try:
+        statuses = client.timeline_home(max_id=max_id, limit=min(limit, 40))
+        items = [_format_status_for_deck(s) for s in statuses]
+        return JSONResponse({"status": "ok", "items": items, "count": len(items)})
+    except Exception as e:
+        logger.exception("Failed to fetch home timeline")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.get("/api/deck/feed/hashtag/{tag}")
+async def api_deck_feed_hashtag(tag: str, request: Request, max_id: str = None, limit: int = 30):
+    if (auth := _require_auth_api(request)):
+        return auth
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Not configured"}, status_code=400)
+    clean_tag = tag.lstrip("#").strip()
+    try:
+        statuses = client.timeline_hashtag(hashtag=clean_tag, max_id=max_id, limit=min(limit, 40))
+        items = [_format_status_for_deck(s) for s in statuses]
+        return JSONResponse({"status": "ok", "tag": clean_tag, "items": items, "count": len(items)})
+    except Exception as e:
+        logger.exception(f"Failed to fetch hashtag timeline: #{clean_tag}")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.get("/api/deck/feed/public")
+async def api_deck_feed_public(request: Request, local: int = 0, max_id: str = None, limit: int = 30):
+    if (auth := _require_auth_api(request)):
+        return auth
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Not configured"}, status_code=400)
+    try:
+        statuses = client.timeline_public(local=bool(local), max_id=max_id, limit=min(limit, 40))
+        items = [_format_status_for_deck(s) for s in statuses]
+        return JSONResponse({"status": "ok", "local": bool(local), "items": items, "count": len(items)})
+    except Exception as e:
+        logger.exception("Failed to fetch public timeline")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.get("/api/deck/feed/notifications")
+async def api_deck_feed_notifications(request: Request, max_id: str = None, limit: int = 30):
+    if (auth := _require_auth_api(request)):
+        return auth
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Not configured"}, status_code=400)
+    try:
+        notifications = client.notifications(max_id=max_id, limit=min(limit, 40))
+        items = [_format_notification_for_deck(n) for n in notifications]
+        return JSONResponse({"status": "ok", "items": items, "count": len(items)})
+    except Exception as e:
+        logger.exception("Failed to fetch notifications via API")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.get("/api/deck/feed/favorites")
+async def api_deck_feed_favorites(request: Request, max_id: str = None, limit: int = 30):
+    if (auth := _require_auth_api(request)):
+        return auth
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Not configured"}, status_code=400)
+    try:
+        favs = client.favourites(max_id=max_id, limit=min(limit, 40))
+        items = [_format_status_for_deck(s) for s in favs]
+        return JSONResponse({"status": "ok", "items": items, "count": len(items)})
+    except Exception as e:
+        logger.exception("Failed to fetch favorites via API")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.get("/api/deck/feed/bookmarks")
+async def api_deck_feed_bookmarks(request: Request, max_id: str = None, limit: int = 30):
+    if (auth := _require_auth_api(request)):
+        return auth
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Not configured"}, status_code=400)
+    try:
+        bms = client.bookmarks(max_id=max_id, limit=min(limit, 40))
+        items = [_format_status_for_deck(s) for s in bms]
+        return JSONResponse({"status": "ok", "items": items, "count": len(items)})
+    except Exception as e:
+        logger.exception("Failed to fetch bookmarks via API")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.get("/api/deck/feed/archive")
+async def api_deck_feed_archive(request: Request, filter: str = "all", page: int = 1):
+    if (auth := _require_auth_api(request)):
+        return auth
+    with get_db() as conn:
+        items, total = get_filtered_toots(conn, page=page, per_page=30, filter_type=filter or "all")
+    return JSONResponse({"status": "ok", "items": items, "total": total, "page": page})
+
+
+@app.get("/api/deck/feed/trends")
+async def api_deck_feed_trends(request: Request):
+    if (auth := _require_auth_api(request)):
+        return auth
+    with get_db() as conn:
+        hashtags = get_hashtag_counts(conn, limit=15)
+        queue_items = list_pending_toots()
+        stats = get_stats(conn)
+    return JSONResponse({
+        "status": "ok",
+        "hashtags": hashtags,
+        "queue": queue_items,
+        "stats": stats,
+    })
+
+
+@app.post("/api/deck/toot/{toot_id}/favourite")
+async def api_deck_favourite(toot_id: str, request: Request):
+    if (auth := _require_auth_api(request)):
+        return auth
+    if csrf := await _require_csrf(request):
+        return csrf
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Not configured"}, status_code=400)
+    data = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    action = data.get("action", "toggle")
+    try:
+        if action == "unfavourite":
+            res = client.status_unfavourite(toot_id)
+            favourited = False
+        elif action == "favourite":
+            res = client.status_favourite(toot_id)
+            favourited = True
+        else:
+            status = client.status(toot_id)
+            if status.get("favourited"):
+                res = client.status_unfavourite(toot_id)
+                favourited = False
+            else:
+                res = client.status_favourite(toot_id)
+                favourited = True
+        return JSONResponse({
+            "status": "ok",
+            "favourited": favourited,
+            "favourites_count": res.get("favourites_count", 0) if isinstance(res, dict) else 0,
+        })
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.post("/api/deck/toot/{toot_id}/reblog")
+async def api_deck_reblog(toot_id: str, request: Request):
+    if (auth := _require_auth_api(request)):
+        return auth
+    if csrf := await _require_csrf(request):
+        return csrf
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Not configured"}, status_code=400)
+    data = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    action = data.get("action", "toggle")
+    try:
+        if action == "unreblog":
+            res = client.status_unreblog(toot_id)
+            reblogged = False
+        elif action == "reblog":
+            res = client.status_reblog(toot_id)
+            reblogged = True
+        else:
+            status = client.status(toot_id)
+            if status.get("reblogged"):
+                res = client.status_unreblog(toot_id)
+                reblogged = False
+            else:
+                res = client.status_reblog(toot_id)
+                reblogged = True
+        return JSONResponse({
+            "status": "ok",
+            "reblogged": reblogged,
+            "reblogs_count": res.get("reblogs_count", 0) if isinstance(res, dict) else 0,
+        })
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.post("/api/deck/toot/{toot_id}/bookmark")
+async def api_deck_bookmark(toot_id: str, request: Request):
+    if (auth := _require_auth_api(request)):
+        return auth
+    if csrf := await _require_csrf(request):
+        return csrf
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Not configured"}, status_code=400)
+    data = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    action = data.get("action", "toggle")
+    try:
+        if action == "unbookmark":
+            res = client.status_unbookmark(toot_id)
+            bookmarked = False
+        elif action == "bookmark":
+            res = client.status_bookmark(toot_id)
+            bookmarked = True
+        else:
+            status = client.status(toot_id)
+            if status.get("bookmarked"):
+                res = client.status_unbookmark(toot_id)
+                bookmarked = False
+            else:
+                res = client.status_bookmark(toot_id)
+                bookmarked = True
+        return JSONResponse({
+            "status": "ok",
+            "bookmarked": bookmarked,
+        })
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
 @app.get("/api/deck/column/{col_name}")

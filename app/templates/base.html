@@ -38,23 +38,28 @@
 </head>
 <body>
     <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+    <button class="mobile-menu-trigger" id="mobile-hamburger" aria-label="Open menu" title="Open navigation menu">&#9776;</button>
 
     <aside class="main-sidebar" id="main-sidebar">
-        <div class="nav-brand">
-            <a href="/" class="nav-brand-link">
-                <img src="/static/logo.png?v={{ APP_VERSION }}" alt="Mastoferr" class="nav-logo">
-                <span class="nav-brand-text">Mastoferr</span>
-                {% if APP_ENV == 'alpha' %}
-                <span class="badge-env badge-alpha">Alpha</span>
-                {% elif APP_ENV == 'beta' %}
-                <span class="badge-env badge-beta">Beta</span>
-                {% endif %}
-            </a>
-            <button class="btn-sidebar-toggle" id="btn-sidebar-collapse" title="Collapse sidebar">&#171;</button>
+        <div class="sidebar-header">
+            <div class="nav-brand">
+                <a href="/" class="nav-brand-link">
+                    <img src="/static/logo.png?v={{ APP_VERSION }}" alt="Mastoferr" class="nav-logo">
+                    <span class="nav-brand-text">Mastoferr</span>
+                    {% if APP_ENV == 'alpha' %}
+                    <span class="badge-env badge-alpha">Alpha</span>
+                    {% elif APP_ENV == 'beta' %}
+                    <span class="badge-env badge-beta">Beta</span>
+                    {% endif %}
+                </a>
+            </div>
+            <button class="btn-sidebar-hamburger" id="nav-hamburger" aria-label="Toggle sidebar" title="Toggle sidebar">
+                &#9776;
+            </button>
         </div>
         <nav class="sidebar-nav">
-            <a href="/" class="{% if request.url.path == '/' %}active{% endif %}" title="Dashboard"><span class="nav-icon">&#128202;</span><span class="nav-text">Dashboard</span></a>
-            <a href="/deck" class="{% if request.url.path == '/deck' %}active{% endif %}" title="Deck"><span class="nav-icon">&#128450;</span><span class="nav-text">Deck</span></a>
+            <a href="/" class="{% if request.url.path in ['/', '/deck'] %}active{% endif %}" title="Deck"><span class="nav-icon">&#128450;</span><span class="nav-text">Deck</span></a>
+            <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}" title="Dashboard"><span class="nav-icon">&#128202;</span><span class="nav-text">Dashboard</span></a>
             <div class="sidebar-nav-sep"></div>
             <a href="/toots" class="{% if request.url.path == '/toots' %}active{% endif %}" title="Toots"><span class="nav-icon">&#128172;</span><span class="nav-text">Toots</span></a>
             <a href="/notifications" class="{% if request.url.path == '/notifications' %}active{% endif %}" title="Notifications"><span class="nav-icon">&#128276;</span><span class="nav-text">Notifs</span></a>
@@ -74,30 +79,11 @@
     </aside>
 
     <div class="page-wrapper">
-        <header class="topbar">
-            <div class="topbar-left">
-                <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle navigation" aria-expanded="false">&#9776;</button>
-                <a href="/" class="topbar-brand">
-                    <img src="/static/logo.png?v={{ APP_VERSION }}" alt="Mastoferr" class="nav-logo">
-                    <span class="topbar-brand-title">Mastoferr</span>
-                    {% if APP_ENV == 'alpha' %}
-                    <span class="badge-env badge-alpha">Alpha</span>
-                    {% elif APP_ENV == 'beta' %}
-                    <span class="badge-env badge-beta">Beta</span>
-                    {% endif %}
-                </a>
-            </div>
-            <form class="topbar-search" action="/search" method="get">
-                <input type="text" name="q" placeholder="Search archive..." value="{{ request.query_params.get('q', '') }}">
-                <button type="submit" aria-label="Search">&#128269;</button>
-            </form>
-        </header>
-
-        <main class="{% if request.url.path == '/deck' %}container-deck{% else %}container{% endif %}">
+        <main class="{% if request.url.path in ['/', '/deck'] %}container-deck{% else %}container{% endif %}">
             {% block content %}{% endblock %}
         </main>
 
-        {% if request.url.path != '/deck' %}
+        {% if request.url.path not in ['/', '/deck'] %}
         <footer class="site-footer">
             <span>Mastoferr v{{ APP_VERSION }}</span>
         </footer>

@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', checkVersion);
 // Responsive Sidebar & Navigation Controller
 (function () {
     const hamburgerBtn = document.getElementById('nav-hamburger');
-    const collapseBtn = document.getElementById('btn-sidebar-collapse');
+    const mobileTrigger = document.getElementById('mobile-hamburger');
     const sidebar = document.getElementById('main-sidebar');
     const backdrop = document.getElementById('sidebar-backdrop');
     if (!sidebar) return;
@@ -144,28 +144,22 @@ document.addEventListener('DOMContentLoaded', checkVersion);
     const isMobile = () => window.innerWidth <= 900;
     if (!isMobile() && localStorage.getItem('mastoferr_sidebar_collapsed') === 'true') {
         document.body.classList.add('sidebar-collapsed');
-        if (collapseBtn) collapseBtn.innerHTML = '&#187;';
     }
 
     function toggleDesktopCollapse() {
         const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
         localStorage.setItem('mastoferr_sidebar_collapsed', isCollapsed);
-        if (collapseBtn) {
-            collapseBtn.innerHTML = isCollapsed ? '&#187;' : '&#171;';
-        }
     }
 
     function toggleMobileDrawer() {
         const open = sidebar.classList.toggle('open');
         if (backdrop) backdrop.classList.toggle('active', open);
-        if (hamburgerBtn) hamburgerBtn.setAttribute('aria-expanded', open);
         document.body.classList.toggle('no-scroll', open);
     }
 
     function closeMobileDrawer() {
         sidebar.classList.remove('open');
         if (backdrop) backdrop.classList.remove('active');
-        if (hamburgerBtn) hamburgerBtn.setAttribute('aria-expanded', 'false');
         document.body.classList.remove('no-scroll');
     }
 
@@ -180,10 +174,10 @@ document.addEventListener('DOMContentLoaded', checkVersion);
         });
     }
 
-    if (collapseBtn) {
-        collapseBtn.addEventListener('click', function (e) {
+    if (mobileTrigger) {
+        mobileTrigger.addEventListener('click', function (e) {
             e.stopPropagation();
-            toggleDesktopCollapse();
+            toggleMobileDrawer();
         });
     }
 

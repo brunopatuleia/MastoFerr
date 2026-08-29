@@ -945,30 +945,9 @@ def api_version():
 # ─── Main pages ───────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    redirect = _require_setup(request)
-    if redirect:
-        return redirect
-    with get_db() as conn:
-        stats = get_stats(conn)
-        toots, _ = get_toots(conn, page=1, per_page=10)
-        notifs, _ = get_notifications(conn, page=1, per_page=10)
-        settings = get_all_settings(conn)
-        roast = generate_roast(conn)
-    return templates.TemplateResponse(request=request, name="index.html", context={
-        "request": request,
-        "stats": stats,
-        "recent_toots": toots,
-        "recent_notifications": notifs,
-        "account": settings,
-        "roast": roast,
-        "instance_url": settings.get("instance_url", ""),
-    })
-
-
 @app.get("/deck", response_class=HTMLResponse)
 async def deck_page(request: Request):
-    """Render the Mastodon Multi-Column Deck interface."""
+    """Render the Mastodon Multi-Column Deck interface as the primary landing page."""
     redirect = _require_setup(request)
     if redirect:
         return redirect
@@ -1004,6 +983,29 @@ async def deck_page(request: Request):
         "queue_items": queue_items,
         "stats": stats,
         "default_visibility": settings.get("pu_toot_visibility") or "public",
+    })
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(request: Request):
+    """Render the analytics, roast, and activity dashboard."""
+    redirect = _require_setup(request)
+    if redirect:
+        return redirect
+    with get_db() as conn:
+        stats = get_stats(conn)
+        toots, _ = get_toots(conn, page=1, per_page=10)
+        notifs, _ = get_notifications(conn, page=1, per_page=10)
+        settings = get_all_settings(conn)
+        roast = generate_roast(conn)
+    return templates.TemplateResponse(request=request, name="index.html", context={
+        "request": request,
+        "stats": stats,
+        "recent_toots": toots,
+        "recent_notifications": notifs,
+        "account": settings,
+        "roast": roast,
+        "instance_url": settings.get("instance_url", ""),
     })
 
 

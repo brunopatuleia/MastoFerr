@@ -854,3 +854,4 @@ function escapeHtml(str) {
 }
 
 document.addEventListener('DOMContentLoaded', initDeck);
+

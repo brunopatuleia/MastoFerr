@@ -6,7 +6,7 @@ All notable changes to Mastoferr are documented here.
 
 ---
 
-## [Unreleased - beta]
+## [1.5.0-beta.1] - 2026-08-29
 
 ### Security
 - Added standard defensive HTTP security response headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`) to all responses.

@@ -93,13 +93,15 @@
             </form>
         </header>
 
-        <main class="container">
+        <main class="{% if request.url.path == '/deck' %}container-deck{% else %}container{% endif %}">
             {% block content %}{% endblock %}
         </main>
 
+        {% if request.url.path != '/deck' %}
         <footer class="site-footer">
             <span>Mastoferr v{{ APP_VERSION }}</span>
         </footer>
+        {% endif %}
     </div>
 
     <script src="/static/app.js"></script>

@@ -1,9 +1,6 @@
 .env
 data/
-data-alpha/
-data-beta/
 __pycache__/
 *.pyc
 .venv/
 .claude/
-

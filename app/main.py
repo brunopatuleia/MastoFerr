@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.parse import quote as _url_quote
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, Form, Query, Request
+from fastapi import FastAPI, Form, Query, Request, UploadFile, File
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -1023,8 +1023,10 @@ async def api_compose_toot(request: Request):
     sensitive = bool(data.get("sensitive", False))
     spoiler_text = str(data.get("spoiler_text", "")).strip() or None
 
-    if not status_text:
-        return JSONResponse({"status": "error", "message": "Toot content cannot be empty."}, status_code=400)
+    media_ids = data.get("media_ids") or []
+
+    if not status_text and not media_ids:
+        return JSONResponse({"status": "error", "message": "Toot content or media attachment cannot be empty."}, status_code=400)
     if len(status_text) > 500:
         return JSONResponse({"status": "error", "message": "Toot exceeds 500 character limit."}, status_code=400)
     if visibility not in ("public", "unlisted", "private", "direct"):
@@ -1042,6 +1044,7 @@ async def api_compose_toot(request: Request):
         posted = client.status_post(
             status=status_text,
             in_reply_to_id=in_reply_to_id,
+            media_ids=media_ids if media_ids else None,
             visibility=visibility,
             sensitive=sensitive,
             spoiler_text=spoiler_text,
@@ -1061,6 +1064,47 @@ async def api_compose_toot(request: Request):
     except Exception as e:
         logger.exception("Failed to post status via API")
         return JSONResponse({"status": "error", "message": f"Mastodon API error: {e}"}, status_code=500)
+
+
+@app.post("/api/media/upload")
+async def api_media_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    description: str = Form(""),
+):
+    """Upload an image/video/audio file directly to Mastodon and return attachment ID and preview."""
+    if (auth := _require_auth_api(request)):
+        return auth
+    if csrf := await _require_csrf(request):
+        return csrf
+    client = _get_deck_client()
+    if not client:
+        return JSONResponse({"status": "error", "message": "Mastodon account not connected."}, status_code=400)
+
+    try:
+        content = await file.read()
+        if len(content) > 40 * 1024 * 1024:
+            return JSONResponse({"status": "error", "message": "File exceeds 40MB upload limit."}, status_code=400)
+
+        media = client.media_post(
+            media_file=BytesIO(content),
+            mime_type=file.content_type,
+            description=description or None,
+        )
+
+        return JSONResponse({
+            "status": "ok",
+            "media": {
+                "id": str(media.get("id", "")),
+                "url": media.get("url") or media.get("preview_url") or "",
+                "preview_url": media.get("preview_url") or media.get("url") or "",
+                "type": media.get("type", "image"),
+                "description": media.get("description") or "",
+            }
+        })
+    except Exception as e:
+        logger.exception("Failed to upload media to Mastodon")
+        return JSONResponse({"status": "error", "message": f"Media upload failed: {e}"}, status_code=500)
 
 
 def _get_deck_client() -> Mastodon | None:

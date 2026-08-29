@@ -45,10 +45,17 @@
             <input type="text" id="compose-spoiler" class="compose-input-cw" placeholder="Write your content warning here...">
         </div>
 
-        <textarea id="compose-text" class="compose-textarea" placeholder="What's on your mind?" rows="4" maxlength="500" required></textarea>
+        <textarea id="compose-text" class="compose-textarea" placeholder="What's on your mind? (Paste images with Ctrl+V)" rows="4" maxlength="500"></textarea>
+
+        <!-- Media Attachment Preview Grid -->
+        <div class="compose-media-previews" id="compose-media-previews" style="display:none;"></div>
+        <div class="compose-upload-status" id="compose-upload-status" style="display:none;"></div>
+
+        <input type="file" id="compose-file-input" multiple accept="image/*,video/*,audio/*" style="display:none;" onchange="handleFileSelect(event)">
 
         <div class="compose-footer">
             <div class="compose-tools">
+                <button type="button" class="btn-tool" id="btn-attach-media" onclick="triggerFileSelect()" title="Attach images or videos (up to 4)">&#128206; <span id="attach-count" class="attach-badge" style="display:none;">0</span></button>
                 <button type="button" class="btn-tool" id="btn-cw-toggle" onclick="toggleCW()" title="Content Warning">&#9888; CW</button>
                 <select id="compose-visibility" class="compose-select-visibility" title="Visibility">
                     <option value="public" {% if default_visibility == 'public' %}selected{% endif %}>&#127760; Public</option>

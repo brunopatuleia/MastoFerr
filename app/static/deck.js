@@ -158,8 +158,30 @@ function initComposeColumn(colEl) {
     if (template && content) {
         content.innerHTML = template.innerHTML;
         const textarea = content.querySelector('#compose-text');
+        const form = content.querySelector('#deck-compose-form');
         if (textarea) {
             textarea.addEventListener('input', updateCharCount);
+        }
+
+        // Setup Paste Event Listener for Clipboard Images
+        if (form) {
+            form.addEventListener('paste', handleClipboardPaste);
+
+            // Drag and Drop support
+            form.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                form.classList.add('drag-over');
+            });
+            form.addEventListener('dragleave', () => {
+                form.classList.remove('drag-over');
+            });
+            form.addEventListener('drop', (e) => {
+                e.preventDefault();
+                form.classList.remove('drag-over');
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+                    Array.from(e.dataTransfer.files).forEach(uploadMediaFile);
+                }
+            });
         }
     }
 }
@@ -739,7 +761,128 @@ function resetDeckLayout() {
     }
 }
 
-// ── Compose Tool Helpers ─────────────────────────────────────────────────────
+// ── Compose & Media Upload Helpers ───────────────────────────────────────────
+
+let attachedMedia = [];
+
+function triggerFileSelect() {
+    const input = document.getElementById('compose-file-input');
+    if (input) input.click();
+}
+
+function handleFileSelect(e) {
+    if (!e.target || !e.target.files) return;
+    const files = Array.from(e.target.files);
+    files.forEach(uploadMediaFile);
+    e.target.value = '';
+}
+
+function handleClipboardPaste(e) {
+    if (!e.clipboardData) return;
+    const items = e.clipboardData.items || [];
+    let hasImage = false;
+
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file' && (item.type.startsWith('image/') || item.type.startsWith('video/'))) {
+            const file = item.getAsFile();
+            if (file) {
+                hasImage = true;
+                uploadMediaFile(file);
+            }
+        }
+    }
+
+    if (hasImage) {
+        showToast('📋 Media pasted from clipboard!');
+    }
+}
+
+async function uploadMediaFile(file) {
+    if (attachedMedia.length >= 4) {
+        showToast('⚠️ Maximum 4 attachments allowed per toot.');
+        return;
+    }
+
+    const statusEl = document.getElementById('compose-upload-status');
+    const submitBtn = document.getElementById('compose-submit-btn');
+
+    if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = `<span class="spinner"></span> Uploading ${escapeHtml(file.name || 'media')}...`;
+    }
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const resp = await fetch('/api/media/upload', {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await resp.json();
+
+        if (data.status === 'ok' && data.media) {
+            attachedMedia.push(data.media);
+            renderAttachedMedia();
+            showToast('✅ Attachment uploaded!');
+        } else {
+            alert(data.message || 'Media upload failed');
+        }
+    } catch (err) {
+        alert('Upload error: ' + err.message);
+    } finally {
+        if (statusEl) statusEl.style.display = 'none';
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
+function renderAttachedMedia() {
+    const previewsEl = document.getElementById('compose-media-previews');
+    const badgeEl = document.getElementById('attach-count');
+    const btnAttach = document.getElementById('btn-attach-media');
+
+    if (!previewsEl) return;
+
+    if (attachedMedia.length === 0) {
+        previewsEl.style.display = 'none';
+        previewsEl.innerHTML = '';
+        if (badgeEl) badgeEl.style.display = 'none';
+        if (btnAttach) btnAttach.classList.remove('has-media');
+        return;
+    }
+
+    previewsEl.style.display = 'grid';
+    if (badgeEl) {
+        badgeEl.textContent = attachedMedia.length;
+        badgeEl.style.display = 'inline-block';
+    }
+    if (btnAttach) btnAttach.classList.add('has-media');
+
+    previewsEl.innerHTML = attachedMedia.map((m, idx) => `
+        <div class="compose-thumb-item">
+            <img src="${escapeHtml(m.preview_url || m.url)}" alt="${escapeHtml(m.description || '')}">
+            <button type="button" class="btn-remove-thumb" onclick="removeAttachedMedia(${idx})" title="Remove attachment">✖</button>
+            <button type="button" class="btn-alt-thumb ${m.description ? 'has-alt' : ''}" onclick="editMediaAlt(${idx})" title="${m.description ? 'Edit description' : 'Add image description'}">ALT</button>
+        </div>
+    `).join('');
+}
+
+function removeAttachedMedia(index) {
+    attachedMedia.splice(index, 1);
+    renderAttachedMedia();
+}
+
+function editMediaAlt(index) {
+    const media = attachedMedia[index];
+    if (!media) return;
+    const desc = prompt('Enter description (alt text) for this image:', media.description || '');
+    if (desc !== null) {
+        media.description = desc.trim();
+        renderAttachedMedia();
+    }
+}
 
 function toggleCW() {
     const box = document.getElementById('compose-cw-box');
@@ -774,9 +917,11 @@ async function submitDeckToot(e) {
     const feedbackEl = document.getElementById('compose-feedback');
     const submitBtn = document.getElementById('compose-submit-btn');
 
-    if (!textEl || !textEl.value.trim()) return;
+    const status = textEl ? textEl.value.trim() : '';
+    const mediaIds = attachedMedia.map(m => m.id);
 
-    const status = textEl.value.trim();
+    if (!status && mediaIds.length === 0) return;
+
     const spoiler = (cwBox && cwBox.style.display !== 'none' && spoilerEl) ? spoilerEl.value.trim() : '';
     const visibility = visEl ? visEl.value : 'public';
 
@@ -788,6 +933,7 @@ async function submitDeckToot(e) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 status,
+                media_ids: mediaIds,
                 spoiler_text: spoiler || undefined,
                 sensitive: Boolean(spoiler),
                 visibility
@@ -796,8 +942,10 @@ async function submitDeckToot(e) {
         const data = await resp.json();
 
         if (data.status === 'ok') {
-            textEl.value = '';
+            if (textEl) textEl.value = '';
             if (spoilerEl) spoilerEl.value = '';
+            attachedMedia = [];
+            renderAttachedMedia();
             updateCharCount();
             if (feedbackEl) {
                 feedbackEl.className = 'compose-feedback success';

@@ -2193,6 +2193,12 @@ h2 {
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0.6rem;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+
+.deck-compose-form.drag-over {
+    border-color: var(--accent);
+    background: rgba(108, 99, 255, 0.08);
 }
 
 .compose-textarea {
@@ -2204,11 +2210,101 @@ h2 {
     font-size: 0.85rem;
     resize: vertical;
     outline: none;
-    min-height: 80px;
+    min-height: 70px;
 }
 
 .compose-textarea::placeholder {
     color: var(--text-muted);
+}
+
+.compose-media-previews {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.4rem;
+    padding: 0.25rem 0;
+}
+
+.compose-thumb-item {
+    position: relative;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--bg-card);
+    aspect-ratio: 16 / 10;
+    border: 1px solid var(--border);
+}
+
+.compose-thumb-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.btn-remove-thumb {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    border: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btn-remove-thumb:hover {
+    background: var(--red);
+}
+
+.btn-alt-thumb {
+    position: absolute;
+    bottom: 3px;
+    left: 3px;
+    background: rgba(0, 0, 0, 0.75);
+    color: var(--text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.btn-alt-thumb.has-alt {
+    color: var(--green);
+    border-color: var(--green);
+}
+
+.compose-upload-status {
+    font-size: 0.75rem;
+    color: var(--accent);
+    padding: 0.25rem 0.4rem;
+    background: rgba(108, 99, 255, 0.1);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.attach-badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: bold;
+    padding: 0.05rem 0.3rem;
+    border-radius: 8px;
+    margin-left: 0.2rem;
+}
+
+.btn-tool.has-media {
+    color: var(--accent);
+    border-color: var(--accent);
 }
 
 .compose-cw-box {

@@ -98,6 +98,17 @@ function createColumnElement(col, index) {
                 <button class="btn-col-action btn-col-close" onclick="removeColumn('${col.id}')" title="Close">✖</button>
             </div>
         `;
+    } else if (col.type === 'hashtag') {
+        headerControls = `
+            <div class="deck-col-controls">
+                <button class="btn-col-action btn-col-settings ${col.settingsOpen ? 'active' : ''}" onclick="toggleHashtagSettings('${col.id}')" title="Hashtag Column Settings">${col.settingsOpen ? '⌃' : '⌄'}</button>
+                <button class="btn-col-action" onclick="moveColumn('${col.id}', -1)" title="Move Left" ${isFirstMovable ? 'disabled' : ''}>◀</button>
+                <button class="btn-col-action" onclick="moveColumn('${col.id}', 1)" title="Move Right" ${isLastMovable ? 'disabled' : ''}>▶</button>
+                <button class="btn-col-action" onclick="cycleColumnWidth('${col.id}')" title="Change Width (${col.width || 360}px)">📏</button>
+                <button class="btn-col-action" onclick="refreshColumn('${col.id}')" title="Refresh Feed">🔄</button>
+                <button class="btn-col-action btn-col-close" onclick="removeColumn('${col.id}')" title="Close Column">✖</button>
+            </div>
+        `;
     } else if (!col.permanent) {
         headerControls = `
             <div class="deck-col-controls">
@@ -154,16 +165,20 @@ function createColumnElement(col, index) {
         `;
     }
 
+    const displayTitle = col.type === 'hashtag' ? computeHashtagTitle(col) : col.title;
+    const settingsPanelHtml = (col.type === 'hashtag' && col.settingsOpen) ? renderHashtagSettingsPanel(col) : '';
+
     el.innerHTML = `
         <div class="deck-col-header">
-            <div class="deck-col-title">
+            <div class="deck-col-title" title="${escapeHtml(displayTitle)}">
                 <span class="deck-col-icon">${icon}</span>
-                <h2>${escapeHtml(col.title)}</h2>
+                <h2>${escapeHtml(displayTitle)}</h2>
                 <span class="deck-badge" id="${col.id}-badge"></span>
             </div>
             ${headerControls}
         </div>
         ${filterBarHtml}
+        ${settingsPanelHtml}
         <div class="deck-col-content" id="${col.id}-content">
             <div class="deck-loading"><span class="spinner"></span> Loading stream...</div>
         </div>
@@ -216,6 +231,16 @@ async function fetchColumnData(col) {
         url = '/api/deck/feed/home';
     } else if (col.type === 'hashtag') {
         url = `/api/deck/feed/hashtag/${encodeURIComponent(col.tag || 'mastodon')}`;
+        const params = [];
+        if (col.localOnly) params.push('local=1');
+        if (col.includeAdditional) {
+            if (col.anyTags && col.anyTags.length) params.push(`any=${col.anyTags.map(encodeURIComponent).join(',')}`);
+            if (col.allTags && col.allTags.length) params.push(`all=${col.allTags.map(encodeURIComponent).join(',')}`);
+            if (col.noneTags && col.noneTags.length) params.push(`none=${col.noneTags.map(encodeURIComponent).join(',')}`);
+        }
+        if (params.length) {
+            url += `?${params.join('&')}`;
+        }
     } else if (col.type === 'public') {
         url = `/api/deck/feed/public?local=${col.local ? 1 : 0}`;
     } else if (col.type === 'notifications') {
@@ -359,6 +384,214 @@ function openUserProfile(accountId, username = '') {
         const el = document.getElementById(profCol.id);
         if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' });
     }, 120);
+}
+
+// ── Hashtag Column Multi-Tag & Local Settings ────────────────────────────────
+
+function computeHashtagTitle(col) {
+    const baseTag = (col.tag || '').replace(/^#/, '') || 'hashtag';
+    if (!col.includeAdditional) {
+        return `# ${baseTag}`;
+    }
+    if (col.anyTags && col.anyTags.length) {
+        const anyStr = col.anyTags.join('/');
+        return `# ${baseTag} or ${anyStr.length > 22 ? anyStr.substring(0, 20) + '...' : anyStr}`;
+    }
+    if (col.allTags && col.allTags.length) {
+        const allStr = col.allTags.join('+');
+        return `# ${baseTag} + ${allStr.length > 22 ? allStr.substring(0, 20) + '...' : allStr}`;
+    }
+    return `# ${baseTag}`;
+}
+
+function renderHashtagSettingsPanel(col) {
+    const isFirstMovable = deckColumns.findIndex(c => c.id === col.id) <= 1;
+    const isLastMovable = deckColumns.findIndex(c => c.id === col.id) === deckColumns.length - 1;
+
+    const anyChips = (col.anyTags || []).map((t, idx) => `
+        <span class="hashtag-chip">
+            #${escapeHtml(t)}
+            <button type="button" class="chip-remove" onclick="event.stopPropagation(); removeHashtagTag('${col.id}', 'any', ${idx})">✖</button>
+        </span>
+    `).join('');
+
+    const allChips = (col.allTags || []).map((t, idx) => `
+        <span class="hashtag-chip">
+            #${escapeHtml(t)}
+            <button type="button" class="chip-remove" onclick="event.stopPropagation(); removeHashtagTag('${col.id}', 'all', ${idx})">✖</button>
+        </span>
+    `).join('');
+
+    const noneChips = (col.noneTags || []).map((t, idx) => `
+        <span class="hashtag-chip">
+            #${escapeHtml(t)}
+            <button type="button" class="chip-remove" onclick="event.stopPropagation(); removeHashtagTag('${col.id}', 'none', ${idx})">✖</button>
+        </span>
+    `).join('');
+
+    let additionalSections = '';
+    if (col.includeAdditional) {
+        additionalSections = `
+            <div class="hashtag-filter-section">
+                <label class="filter-section-title">Any of these</label>
+                <div class="hashtag-tag-box" onclick="focusTagInput('${col.id}', 'any')">
+                    <div class="hashtag-chips-wrap" id="${col.id}-any-chips">
+                        ${anyChips}
+                        <input type="text" class="hashtag-chip-input" id="${col.id}-any-input" placeholder="${(col.anyTags && col.anyTags.length) ? '' : 'Enter hashtags...'}" onkeydown="handleHashtagInputKey('${col.id}', 'any', event)">
+                    </div>
+                    ${(col.anyTags && col.anyTags.length) ? `<button type="button" class="btn-clear-tags" onclick="event.stopPropagation(); clearHashtagGroup('${col.id}', 'any')" title="Clear all">✖</button>` : ''}
+                    <span class="tag-box-arrow">⌄</span>
+                </div>
+            </div>
+
+            <div class="hashtag-filter-section">
+                <label class="filter-section-title">All of these</label>
+                <div class="hashtag-tag-box" onclick="focusTagInput('${col.id}', 'all')">
+                    <div class="hashtag-chips-wrap" id="${col.id}-all-chips">
+                        ${allChips}
+                        <input type="text" class="hashtag-chip-input" id="${col.id}-all-input" placeholder="${(col.allTags && col.allTags.length) ? '' : 'Enter hashtags...'}" onkeydown="handleHashtagInputKey('${col.id}', 'all', event)">
+                    </div>
+                    ${(col.allTags && col.allTags.length) ? `<button type="button" class="btn-clear-tags" onclick="event.stopPropagation(); clearHashtagGroup('${col.id}', 'all')" title="Clear all">✖</button>` : ''}
+                    <span class="tag-box-arrow">⌄</span>
+                </div>
+            </div>
+
+            <div class="hashtag-filter-section">
+                <label class="filter-section-title">None of these</label>
+                <div class="hashtag-tag-box" onclick="focusTagInput('${col.id}', 'none')">
+                    <div class="hashtag-chips-wrap" id="${col.id}-none-chips">
+                        ${noneChips}
+                        <input type="text" class="hashtag-chip-input" id="${col.id}-none-input" placeholder="${(col.noneTags && col.noneTags.length) ? '' : 'Enter hashtags...'}" onkeydown="handleHashtagInputKey('${col.id}', 'none', event)">
+                    </div>
+                    ${(col.noneTags && col.noneTags.length) ? `<button type="button" class="btn-clear-tags" onclick="event.stopPropagation(); clearHashtagGroup('${col.id}', 'none')" title="Clear all">✖</button>` : ''}
+                    <span class="tag-box-arrow">⌄</span>
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="hashtag-settings-panel">
+            <div class="hashtag-toggle-row" onclick="toggleHashtagLocal('${col.id}')">
+                <div class="switch-control ${col.localOnly ? 'checked' : ''}">
+                    <div class="switch-thumb"></div>
+                </div>
+                <span class="switch-label">Local only</span>
+            </div>
+
+            <div class="hashtag-toggle-row" onclick="toggleHashtagAdditional('${col.id}')">
+                <div class="switch-control ${col.includeAdditional ? 'checked' : ''}">
+                    <div class="switch-thumb"></div>
+                </div>
+                <span class="switch-label">Include additional tags for this column</span>
+            </div>
+
+            ${additionalSections}
+
+            <div class="hashtag-settings-footer">
+                <button type="button" class="btn-hashtag-unpin" onclick="removeColumn('${col.id}')">✖ Unpin</button>
+                <div class="hashtag-nav-arrows">
+                    <button type="button" class="btn-hashtag-arrow" onclick="moveColumn('${col.id}', -1)" ${isFirstMovable ? 'disabled' : ''} title="Move Left">❮</button>
+                    <button type="button" class="btn-hashtag-arrow" onclick="moveColumn('${col.id}', 1)" ${isLastMovable ? 'disabled' : ''} title="Move Right">❯</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function toggleHashtagSettings(colId) {
+    const col = deckColumns.find(c => c.id === colId);
+    if (!col) return;
+    col.settingsOpen = !col.settingsOpen;
+    saveColumns();
+    renderColumns();
+}
+
+function toggleHashtagLocal(colId) {
+    const col = deckColumns.find(c => c.id === colId);
+    if (!col) return;
+    col.localOnly = !col.localOnly;
+    saveColumns();
+    renderColumns();
+    fetchColumnData(col);
+}
+
+function toggleHashtagAdditional(colId) {
+    const col = deckColumns.find(c => c.id === colId);
+    if (!col) return;
+    col.includeAdditional = !col.includeAdditional;
+    col.title = computeHashtagTitle(col);
+    saveColumns();
+    renderColumns();
+    fetchColumnData(col);
+}
+
+function focusTagInput(colId, group) {
+    const input = document.getElementById(`${colId}-${group}-input`);
+    if (input) input.focus();
+}
+
+function handleHashtagInputKey(colId, group, event) {
+    if (event.key === 'Enter' || event.key === ',' || event.key === ' ') {
+        event.preventDefault();
+        const input = event.target;
+        const val = input.value.replace(/^[#\s]+/, '').trim();
+        if (!val) return;
+
+        const col = deckColumns.find(c => c.id === colId);
+        if (!col) return;
+
+        const prop = `${group}Tags`;
+        if (!col[prop]) col[prop] = [];
+        if (!col[prop].includes(val)) {
+            col[prop].push(val);
+            col.title = computeHashtagTitle(col);
+            saveColumns();
+            renderColumns();
+            fetchColumnData(col);
+
+            setTimeout(() => {
+                const nextInput = document.getElementById(`${colId}-${group}-input`);
+                if (nextInput) nextInput.focus();
+            }, 60);
+        } else {
+            input.value = '';
+        }
+    } else if (event.key === 'Backspace' && !event.target.value) {
+        const col = deckColumns.find(c => c.id === colId);
+        if (!col) return;
+        const prop = `${group}Tags`;
+        if (col[prop] && col[prop].length) {
+            col[prop].pop();
+            col.title = computeHashtagTitle(col);
+            saveColumns();
+            renderColumns();
+            fetchColumnData(col);
+        }
+    }
+}
+
+function removeHashtagTag(colId, group, index) {
+    const col = deckColumns.find(c => c.id === colId);
+    if (!col) return;
+    const prop = `${group}Tags`;
+    if (col[prop]) {
+        col[prop].splice(index, 1);
+        col.title = computeHashtagTitle(col);
+        saveColumns();
+        renderColumns();
+        fetchColumnData(col);
+    }
+}
+
+function clearHashtagGroup(colId, group) {
+    const col = deckColumns.find(c => c.id === colId);
+    if (!col) return;
+    col[`${group}Tags`] = [];
+    col.title = computeHashtagTitle(col);
+    saveColumns();
+    renderColumns();
+    fetchColumnData(col);
 }
 
 function renderTootCard(toot, isThreadItem = false) {
@@ -1609,17 +1842,28 @@ function confirmAddColumn() {
             alert('Please enter a hashtag name.');
             return;
         }
-        title = `#${tag}`;
+        title = `# ${tag}`;
     }
 
-    deckColumns.push({
+    const colObj = {
         type,
         id: newId,
         title,
         tag,
         width,
         filter: type === 'archive' ? 'all' : ''
-    });
+    };
+
+    if (type === 'hashtag') {
+        colObj.localOnly = false;
+        colObj.includeAdditional = false;
+        colObj.anyTags = [];
+        colObj.allTags = [];
+        colObj.noneTags = [];
+        colObj.settingsOpen = false;
+    }
+
+    deckColumns.push(colObj);
 
     saveColumns();
     closeAddColumnModal();

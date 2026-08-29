@@ -1278,7 +1278,16 @@ async def api_deck_feed_home(request: Request, max_id: str = None, limit: int = 
 
 
 @app.get("/api/deck/feed/hashtag/{tag}")
-async def api_deck_feed_hashtag(tag: str, request: Request, max_id: str = None, limit: int = 30):
+async def api_deck_feed_hashtag(
+    tag: str,
+    request: Request,
+    local: int = 0,
+    any: str = None,
+    all: str = None,
+    none: str = None,
+    max_id: str = None,
+    limit: int = 30
+):
     if (auth := _require_auth_api(request)):
         return auth
     client = _get_deck_client()
@@ -1286,7 +1295,28 @@ async def api_deck_feed_hashtag(tag: str, request: Request, max_id: str = None, 
         return JSONResponse({"status": "error", "message": "Not configured"}, status_code=400)
     clean_tag = tag.lstrip("#").strip()
     try:
-        statuses = client.timeline_hashtag(hashtag=clean_tag, max_id=max_id, limit=min(limit, 40))
+        params = {"limit": min(limit, 40)}
+        if local:
+            params["local"] = True
+        if max_id:
+            params["max_id"] = max_id
+
+        if any:
+            any_list = [t.lstrip('#').strip() for t in any.split(',') if t.lstrip('#').strip()]
+            if any_list:
+                params["any"] = any_list
+
+        if all:
+            all_list = [t.lstrip('#').strip() for t in all.split(',') if t.lstrip('#').strip()]
+            if all_list:
+                params["all"] = all_list
+
+        if none:
+            none_list = [t.lstrip('#').strip() for t in none.split(',') if t.lstrip('#').strip()]
+            if none_list:
+                params["none"] = none_list
+
+        statuses = client._Mastodon__api_request('GET', f'/api/v1/timelines/tag/{clean_tag}', params)
         items = [_format_status_for_deck(s) for s in statuses]
         return JSONResponse({"status": "ok", "tag": clean_tag, "items": items, "count": len(items)})
     except Exception as e:

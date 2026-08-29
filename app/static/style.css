@@ -3735,3 +3735,238 @@ h2 {
     overflow: hidden;
 }
 
+/* ==========================================================================
+   Hashtag Column Settings & Multi-Tag Filters (Advanced Deck Header)
+   ========================================================================== */
+
+.btn-col-settings {
+    font-size: 0.95rem !important;
+    padding: 0.1rem 0.35rem !important;
+}
+
+.btn-col-settings.active {
+    color: var(--accent) !important;
+}
+
+.hashtag-settings-panel {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: 0.85rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    animation: fadeIn 0.15s ease-out;
+}
+
+.hashtag-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.switch-control {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    background: #334155;
+    border-radius: 10px;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+}
+
+.switch-control.checked {
+    background: var(--accent, #6366f1);
+}
+
+.switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: #ffffff;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.switch-control.checked .switch-thumb {
+    transform: translateX(16px);
+}
+
+.switch-label {
+    font-size: 0.84rem;
+    color: var(--text);
+    font-weight: 500;
+}
+
+.hashtag-filter-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.filter-section-title {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.hashtag-tag-box {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 0.35rem 0.55rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    min-height: 38px;
+    cursor: text;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.hashtag-tag-box:hover,
+.hashtag-tag-box:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
+}
+
+.hashtag-chips-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.hashtag-chip {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.8rem;
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+.chip-remove {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.7rem;
+    padding: 0;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.15s;
+}
+
+.chip-remove:hover {
+    color: var(--red, #f43f5e);
+}
+
+.hashtag-chip-input {
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.82rem;
+    outline: none;
+    flex: 1;
+    min-width: 120px;
+    padding: 0.15rem 0.2rem;
+}
+
+.hashtag-chip-input::placeholder {
+    color: var(--text-muted);
+}
+
+.btn-clear-tags {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0.2rem;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.15s;
+}
+
+.btn-clear-tags:hover {
+    color: var(--text);
+}
+
+.tag-box-arrow {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.hashtag-settings-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.2rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.btn-hashtag-unpin {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.35rem;
+    border-radius: 4px;
+    transition: all 0.15s;
+}
+
+.btn-hashtag-unpin:hover {
+    color: var(--red, #f43f5e);
+    background: rgba(244, 67, 54, 0.1);
+}
+
+.hashtag-nav-arrows {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.btn-hashtag-arrow {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    transition: all 0.15s;
+    line-height: 1;
+}
+
+.btn-hashtag-arrow:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--bg-hover);
+}
+
+.btn-hashtag-arrow:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+

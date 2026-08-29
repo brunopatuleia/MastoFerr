@@ -362,6 +362,9 @@ function openUserProfile(accountId, username = '') {
 }
 
 function renderTootCard(toot, isThreadItem = false) {
+    window.tootsMap = window.tootsMap || {};
+    window.tootsMap[toot.id] = toot;
+
     const acct = toot.account || {};
     const hasCw = Boolean(toot.spoiler_text && toot.spoiler_text.trim());
     const cardId = `card-${toot.id || Math.random().toString(36).substring(7)}`;
@@ -428,7 +431,7 @@ function renderTootCard(toot, isThreadItem = false) {
                 <button class="btn-action btn-reply" onclick="openInlineReply('${toot.id}', '@${escapeHtml(acct.acct)}')">
                     💬 <span class="action-count">${toot.replies_count || ''}</span>
                 </button>
-                <button class="btn-action btn-boost ${toot.reblogged ? 'active' : ''}" id="boost-btn-${toot.id}" onclick="toggleBoost('${toot.id}')" title="Boost">
+                <button class="btn-action btn-boost ${toot.reblogged ? 'active' : ''}" id="boost-btn-${toot.id}" onclick="event.stopPropagation(); openBoostPopover('${toot.id}', event)" title="Boost or Quote">
                     🔁 <span class="action-count" id="boost-count-${toot.id}">${toot.reblogs_count || ''}</span>
                 </button>
                 <button class="btn-action btn-fav ${toot.favourited ? 'active' : ''}" id="fav-btn-${toot.id}" onclick="toggleFav('${toot.id}')" title="Favorite">
@@ -502,6 +505,9 @@ function renderThreadView(container, data, colId) {
 }
 
 function renderFocalTootCard(toot) {
+    window.tootsMap = window.tootsMap || {};
+    window.tootsMap[toot.id] = toot;
+
     const acct = toot.account || {};
     const hasCw = Boolean(toot.spoiler_text && toot.spoiler_text.trim());
     const cardId = `focal-${toot.id || Math.random().toString(36).substring(7)}`;
@@ -577,7 +583,7 @@ function renderFocalTootCard(toot) {
                 <button class="btn-action btn-reply" onclick="focusFocalReply('${toot.id}')" title="Reply">
                     💬 <span class="action-count">${toot.replies_count || ''}</span>
                 </button>
-                <button class="btn-action btn-boost ${toot.reblogged ? 'active' : ''}" id="boost-btn-${toot.id}" onclick="toggleBoost('${toot.id}')" title="Boost">
+                <button class="btn-action btn-boost ${toot.reblogged ? 'active' : ''}" id="boost-btn-${toot.id}" onclick="event.stopPropagation(); openBoostPopover('${toot.id}', event)" title="Boost or Quote">
                     🔁 <span class="action-count" id="boost-count-${toot.id}">${toot.reblogs_count || ''}</span>
                 </button>
                 <button class="btn-action btn-fav ${toot.favourited ? 'active' : ''}" id="fav-btn-${toot.id}" onclick="toggleFav('${toot.id}')" title="Favorite">
@@ -830,13 +836,65 @@ async function toggleFav(tootId) {
     }
 }
 
-async function toggleBoost(tootId) {
+// ── Boost & Quote Popover & Modal Logic ──────────────────────────────────────
+let activeBoostContext = null;
+let quoteAttachedMedia = [];
+
+function openBoostPopover(tootId, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    const toot = (window.tootsMap && window.tootsMap[tootId]) || {};
+    const acct = toot.account || {};
+
+    activeBoostContext = {
+        tootId: tootId,
+        url: toot.url || '',
+        authorName: acct.display_name || acct.username || 'User',
+        authorHandle: acct.acct || '',
+        authorAvatar: acct.avatar || '/static/logo.png',
+        content: toot.content || '',
+        isBoosted: Boolean(toot.reblogged)
+    };
+
+    const popover = document.getElementById('boost-popover-menu');
+    const normalText = document.getElementById('boost-menu-normal-text');
+    if (!popover) return;
+
+    if (normalText) {
+        normalText.textContent = activeBoostContext.isBoosted ? 'Unboost' : 'Boost';
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    popover.style.display = 'flex';
+    popover.style.top = `${rect.bottom + window.scrollY + 6}px`;
+    popover.style.left = `${Math.max(10, Math.min(window.innerWidth - 180, rect.left + window.scrollX - 40))}px`;
+}
+
+function closeBoostPopover() {
+    const popover = document.getElementById('boost-popover-menu');
+    if (popover) popover.style.display = 'none';
+}
+
+document.addEventListener('click', function (e) {
+    if (!e.target.closest('#boost-popover-menu') && !e.target.closest('.btn-boost')) {
+        closeBoostPopover();
+    }
+});
+
+async function confirmNormalBoost() {
+    closeBoostPopover();
+    if (!activeBoostContext) return;
+    const { tootId, isBoosted } = activeBoostContext;
+    await executeBoost(tootId, isBoosted);
+}
+
+async function executeBoost(tootId, currentlyActive) {
     const btn = document.getElementById(`boost-btn-${tootId}`);
     const count = document.getElementById(`boost-count-${tootId}`);
-    if (!btn) return;
 
-    const currentlyActive = btn.classList.contains('active');
-    btn.classList.toggle('active', !currentlyActive);
+    if (btn) btn.classList.toggle('active', !currentlyActive);
 
     try {
         const resp = await fetch(`/api/deck/toot/${tootId}/reblog`, {
@@ -846,14 +904,217 @@ async function toggleBoost(tootId) {
         });
         const res = await resp.json();
         if (res.status === 'ok') {
-            btn.classList.toggle('active', res.reblogged);
+            if (btn) btn.classList.toggle('active', res.reblogged);
             if (count && res.reblogs_count !== undefined) {
                 count.textContent = res.reblogs_count || '';
             }
+            if (window.tootsMap && window.tootsMap[tootId]) {
+                window.tootsMap[tootId].reblogged = res.reblogged;
+                window.tootsMap[tootId].reblogs_count = res.reblogs_count;
+            }
+            showToast(res.reblogged ? '🔁 Boosted to your profile!' : '↩️ Undo boost');
+        } else {
+            alert(res.message || 'Failed to boost');
         }
     } catch (e) {
         console.error('Failed to toggle reblog:', e);
-        btn.classList.toggle('active', currentlyActive);
+        if (btn) btn.classList.toggle('active', currentlyActive);
+    }
+}
+
+function triggerQuoteModalFromMenu() {
+    closeBoostPopover();
+    if (!activeBoostContext) return;
+    openQuoteModal(activeBoostContext);
+}
+
+function openQuoteModal(context) {
+    const modal = document.getElementById('deck-quote-modal');
+    if (!modal) return;
+
+    const avatarEl = document.getElementById('quote-preview-avatar');
+    const nameEl = document.getElementById('quote-preview-name');
+    const handleEl = document.getElementById('quote-preview-handle');
+    const contentEl = document.getElementById('quote-preview-content');
+    const textEl = document.getElementById('quote-compose-text');
+    const form = document.getElementById('deck-quote-form');
+
+    if (avatarEl) avatarEl.src = context.authorAvatar || '/static/logo.png';
+    if (nameEl) nameEl.textContent = context.authorName || 'User';
+    if (handleEl) handleEl.textContent = `@${context.authorHandle || ''}`;
+    if (contentEl) contentEl.innerHTML = context.content || '';
+    if (textEl) textEl.value = '';
+
+    quoteAttachedMedia = [];
+    renderQuoteAttachedMedia();
+
+    modal.style.display = 'flex';
+
+    if (form && !form.dataset.boundPaste) {
+        form.dataset.boundPaste = 'true';
+        form.addEventListener('paste', handleQuoteClipboardPaste);
+    }
+
+    if (textEl) textEl.focus();
+}
+
+function closeQuoteModal(e) {
+    if (e && e.target && e.target.closest && e.target.closest('.quote-modal-card') && !e.target.closest('.deck-modal-close')) {
+        return;
+    }
+    const modal = document.getElementById('deck-quote-modal');
+    if (modal) modal.style.display = 'none';
+    quoteAttachedMedia = [];
+}
+
+function triggerQuoteFileSelect() {
+    const input = document.getElementById('quote-file-input');
+    if (input) input.click();
+}
+
+function handleQuoteFileSelect(e) {
+    if (!e.target || !e.target.files) return;
+    const files = Array.from(e.target.files);
+    files.forEach(uploadQuoteMediaFile);
+    e.target.value = '';
+}
+
+function handleQuoteClipboardPaste(e) {
+    if (!e.clipboardData) return;
+    const items = e.clipboardData.items || [];
+    let hasImage = false;
+
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file' && (item.type.startsWith('image/') || item.type.startsWith('video/'))) {
+            const file = item.getAsFile();
+            if (file) {
+                hasImage = true;
+                uploadQuoteMediaFile(file);
+            }
+        }
+    }
+
+    if (hasImage) {
+        showToast('📋 Media pasted into quote!');
+    }
+}
+
+async function uploadQuoteMediaFile(file) {
+    if (quoteAttachedMedia.length >= 4) {
+        showToast('⚠️ Maximum 4 attachments allowed.');
+        return;
+    }
+
+    const statusEl = document.getElementById('quote-upload-status');
+    const submitBtn = document.getElementById('quote-submit-btn');
+
+    if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = `<span class="spinner"></span> Uploading ${escapeHtml(file.name || 'media')}...`;
+    }
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const resp = await fetch('/api/media/upload', {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await resp.json();
+
+        if (data.status === 'ok' && data.media) {
+            quoteAttachedMedia.push(data.media);
+            renderQuoteAttachedMedia();
+            showToast('✅ Attachment uploaded!');
+        } else {
+            alert(data.message || 'Media upload failed');
+        }
+    } catch (err) {
+        alert('Upload error: ' + err.message);
+    } finally {
+        if (statusEl) statusEl.style.display = 'none';
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
+function renderQuoteAttachedMedia() {
+    const previewsEl = document.getElementById('quote-media-previews');
+    const badgeEl = document.getElementById('quote-attach-count');
+    const btnAttach = document.getElementById('btn-quote-attach');
+
+    if (!previewsEl) return;
+
+    if (quoteAttachedMedia.length === 0) {
+        previewsEl.style.display = 'none';
+        previewsEl.innerHTML = '';
+        if (badgeEl) badgeEl.style.display = 'none';
+        if (btnAttach) btnAttach.classList.remove('has-media');
+        return;
+    }
+
+    previewsEl.style.display = 'grid';
+    if (badgeEl) {
+        badgeEl.textContent = quoteAttachedMedia.length;
+        badgeEl.style.display = 'inline-block';
+    }
+    if (btnAttach) btnAttach.classList.add('has-media');
+
+    previewsEl.innerHTML = quoteAttachedMedia.map((m, idx) => `
+        <div class="compose-thumb-item">
+            <img src="${escapeHtml(m.preview_url || m.url)}" alt="${escapeHtml(m.description || '')}">
+            <button type="button" class="btn-remove-thumb" onclick="removeQuoteMedia(${idx})" title="Remove attachment">✖</button>
+        </div>
+    `).join('');
+}
+
+function removeQuoteMedia(index) {
+    quoteAttachedMedia.splice(index, 1);
+    renderQuoteAttachedMedia();
+}
+
+async function submitQuoteToot(e) {
+    if (e) e.preventDefault();
+    if (!activeBoostContext) return;
+
+    const textEl = document.getElementById('quote-compose-text');
+    const visEl = document.getElementById('quote-visibility');
+    const submitBtn = document.getElementById('quote-submit-btn');
+
+    const commentary = textEl ? textEl.value.trim() : '';
+    const quoteUrl = activeBoostContext.url || `https://${activeBoostContext.tootId}`;
+
+    const status = commentary ? `${commentary}\n\n${quoteUrl}` : quoteUrl;
+    const mediaIds = quoteAttachedMedia.map(m => m.id);
+    const visibility = visEl ? visEl.value : 'public';
+
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+        const resp = await fetch('/api/compose', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                status,
+                media_ids: mediaIds,
+                visibility
+            })
+        });
+        const data = await resp.json();
+
+        if (data.status === 'ok') {
+            closeQuoteModal();
+            showToast('🚀 Quote toot published!');
+            refreshAllColumns();
+        } else {
+            alert(data.message || 'Failed to post quote');
+        }
+    } catch (err) {
+        alert('Quote error: ' + err.message);
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
     }
 }
 

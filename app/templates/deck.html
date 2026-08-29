@@ -100,5 +100,64 @@
     </div>
 </template>
 
+<!-- Quote Toot Modal Dialog -->
+<div id="deck-quote-modal" class="deck-modal-backdrop" style="display:none;" onclick="closeQuoteModal(event)">
+    <div class="deck-modal-card quote-modal-card" onclick="event.stopPropagation()">
+        <div class="deck-modal-header">
+            <h3>✍️ Quote Toot</h3>
+            <button class="deck-modal-close" onclick="closeQuoteModal()">&#10006;</button>
+        </div>
+        <form id="deck-quote-form" onsubmit="submitQuoteToot(event)">
+            <div class="deck-modal-body">
+                <textarea id="quote-compose-text" class="compose-textarea" placeholder="Add your commentary... (Paste images with Ctrl+V)" rows="4"></textarea>
+
+                <!-- Quoted Toot Embed Preview -->
+                <div class="quoted-toot-preview" id="quote-preview-box">
+                    <div class="quoted-preview-header">
+                        <img id="quote-preview-avatar" src="" alt="" class="quoted-preview-avatar">
+                        <div class="quoted-preview-meta">
+                            <span id="quote-preview-name" class="quoted-preview-name"></span>
+                            <span id="quote-preview-handle" class="quoted-preview-handle"></span>
+                        </div>
+                    </div>
+                    <div id="quote-preview-content" class="quoted-preview-content"></div>
+                </div>
+
+                <!-- Media Preview Grid for Quote -->
+                <div class="compose-media-previews" id="quote-media-previews" style="display:none;"></div>
+                <div class="compose-upload-status" id="quote-upload-status" style="display:none;"></div>
+
+                <input type="file" id="quote-file-input" multiple accept="image/*,video/*,audio/*" style="display:none;" onchange="handleQuoteFileSelect(event)">
+            </div>
+            <div class="deck-modal-footer">
+                <div class="compose-tools">
+                    <button type="button" class="btn-tool" id="btn-quote-attach" onclick="triggerQuoteFileSelect()" title="Attach media">📎 <span id="quote-attach-count" class="attach-badge" style="display:none;">0</span></button>
+                    <select id="quote-visibility" class="compose-select-visibility" title="Visibility">
+                        <option value="public">🌐 Public</option>
+                        <option value="unlisted">🔓 Unlisted</option>
+                        <option value="private">🔒 Followers only</option>
+                    </select>
+                </div>
+                <div class="quote-modal-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="closeQuoteModal()">Cancel</button>
+                    <button type="submit" id="quote-submit-btn" class="btn btn-primary btn-sm">🚀 Quote Post</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Boost Action Menu Popover -->
+<div id="boost-popover-menu" class="boost-popover" style="display:none;" onclick="event.stopPropagation()">
+    <button type="button" class="boost-menu-item" id="boost-menu-normal-btn" onclick="confirmNormalBoost()">
+        <span class="boost-menu-icon">🔁</span>
+        <span id="boost-menu-normal-text">Boost</span>
+    </button>
+    <button type="button" class="boost-menu-item" id="boost-menu-quote-btn" onclick="triggerQuoteModalFromMenu()">
+        <span class="boost-menu-icon">✍️</span>
+        <span>Quote Toot</span>
+    </button>
+</div>
+
 <script src="/static/deck.js?v={{ APP_VERSION }}"></script>
 {% endblock %}

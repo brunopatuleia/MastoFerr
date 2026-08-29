@@ -3225,3 +3225,112 @@ h2 {
     }
 }
 
+/* ==========================================================================
+   Boost Popover Menu & Quote Toot Modal
+   ========================================================================== */
+
+.boost-popover {
+    position: absolute;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    padding: 0.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    z-index: 9999;
+    min-width: 150px;
+    animation: lightboxFadeIn 0.15s ease;
+}
+
+.boost-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background 0.15s, color 0.15s;
+}
+
+.boost-menu-item:hover {
+    background: var(--bg-hover);
+    color: var(--accent);
+}
+
+.boost-menu-icon {
+    font-size: 1rem;
+}
+
+.quote-modal-card {
+    max-width: 520px;
+    width: 100%;
+}
+
+.quoted-toot-preview {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.65rem;
+    background: var(--bg);
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.quoted-preview-header {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.quoted-preview-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.quoted-preview-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    overflow: hidden;
+}
+
+.quoted-preview-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.quoted-preview-handle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.quoted-preview-content {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    max-height: 90px;
+    overflow-y: auto;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.quote-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
